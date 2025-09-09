@@ -10,3 +10,8 @@ export default function OnboardingTokenPage({ params }: { params: Params }) {
     </section>
   );
 }
+import OnboardingWizard from "./wizard";
+
+export default function OnboardingPage({ params }: { params: { token: string } }) {
+  return <OnboardingWizard token={params.token} />;
+}

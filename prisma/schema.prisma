@@ -10,39 +10,40 @@ datasource db {
 }
 
 model OnboardingSession {
-  id        String           @id @default(cuid())
-  token     String           @unique
-  status    OnboardingStatus @default(IN_PROGRESS)
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id        String      @id @default(cuid())
+  token     String      @unique
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 
-  sections SectionData[]
-  uploads  Upload[]
+  // Back-relations
+  sections  SectionData[]
+  uploads   Upload[]
+  client    Client?
 }
 
 model SectionData {
-  id        String            @id @default(cuid())
-  session   OnboardingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id        String             @id @default(cuid())
+  session   OnboardingSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   sessionId String
-  name      String
-  data      Json
-  updatedAt DateTime          @updatedAt
-
-  @@unique([sessionId, name])
 }
 
 model Upload {
-  id        String            @id @default(cuid())
-  session   OnboardingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id        String             @id @default(cuid())
+  session   OnboardingSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   sessionId String
-  filename  String
-  mimeType  String
-  size      Int
-  url       String
-  createdAt DateTime          @default(now())
 }
 
-enum OnboardingStatus {
-  IN_PROGRESS
-  COMPLETED
+model Client {
+  id            String             @id @default(cuid())
+  sessionId     String             @unique
+  session       OnboardingSession  @relation(fields: [sessionId], references: [id])
+
+  fullName      String
+  ssn           String
+  dob           String
+  email         String
+  netWorth      Float
+  income        Float
+  riskTolerance String
+  termsAccepted Boolean
 }
