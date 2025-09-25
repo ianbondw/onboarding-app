@@ -1,17 +1,10 @@
 // src/app/onboarding/[token]/page.tsx
-type Params = { token: string };
+import Wizard from "./wizard";
 
-export default function OnboardingTokenPage({ params }: { params: Params }) {
-  return (
-    <section>
-      <h1>Client Onboarding Wizard</h1>
-      <p><strong>Token:</strong> {params.token}</p>
-      <p>This is a minimal baseline page. Your form engine will mount here.</p>
-    </section>
-  );
-}
-import OnboardingWizard from "./wizard";
+// Keep this page as a lightweight Server Component that renders the client Wizard.
+// Wizard itself reads the [token] via useParams().
+export const dynamic = "force-dynamic";
 
-export default function OnboardingPage({ params }: { params: { token: string } }) {
-  return <OnboardingWizard token={params.token} />;
+export default function OnboardingPage() {
+  return <Wizard />;
 }

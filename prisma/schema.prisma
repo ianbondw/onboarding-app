@@ -1,49 +1,63 @@
 // prisma/schema.prisma
 
+// ---------- Generator ----------
 generator client {
   provider = "prisma-client-js"
 }
 
+// ---------- Datasource ----------
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// ---------- Enums ----------
+enum OnboardingStatus {
+  DRAFT
+  SUBMITTED
+}
+
+enum RiskTolerance {
+  Low
+  Medium
+  High
+}
+
+// ---------- Models ----------
 model OnboardingSession {
-  id        String      @id @default(cuid())
-  token     String      @unique
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id          String           @id @default(cuid())
+  token       String           @unique
+  status      OnboardingStatus @default(DRAFT)
+  submittedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  // Back-relations
-  sections  SectionData[]
-  uploads   Upload[]
-  client    Client?
-}
-
-model SectionData {
-  id        String             @id @default(cuid())
-  session   OnboardingSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  sessionId String
-}
-
-model Upload {
-  id        String             @id @default(cuid())
-  session   OnboardingSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  sessionId String
+  // inverse of 1–1 relation
+  client      Client?
 }
 
 model Client {
-  id            String             @id @default(cuid())
-  sessionId     String             @unique
-  session       OnboardingSession  @relation(fields: [sessionId], references: [id])
+  id                   String           @id @default(cuid())
+  email                String           @unique
+  fullName             String
+  ssn                  String
+  dob                  DateTime
 
-  fullName      String
-  ssn           String
-  dob           String
-  email         String
-  netWorth      Float
-  income        Float
-  riskTolerance String
-  termsAccepted Boolean
+  // Money-like values: Prisma Decimal → Postgres NUMERIC (no @db needed)
+  netWorth             Decimal
+  income               Decimal
+  investableAssets     Decimal
+
+  riskTolerance        RiskTolerance
+  termsAccepted        Boolean
+  kycCitizenship       String?
+  kycEmploymentStatus  String?
+  kycSourceOfFunds     String?
+
+  // 1–1 link to session (FK lives on Client)
+  onboardingSessionId  String?          @unique
+  onboardingSession    OnboardingSession? @relation(fields: [onboardingSessionId], references: [id])
+
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 }
