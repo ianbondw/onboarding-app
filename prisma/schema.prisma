@@ -1,17 +1,12 @@
-// prisma/schema.prisma
-
-// ---------- Generator ----------
 generator client {
   provider = "prisma-client-js"
 }
 
-// ---------- Datasource ----------
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// ---------- Enums ----------
 enum OnboardingStatus {
   DRAFT
   SUBMITTED
@@ -23,7 +18,6 @@ enum RiskTolerance {
   High
 }
 
-// ---------- Models ----------
 model OnboardingSession {
   id          String           @id @default(cuid())
   token       String           @unique
@@ -31,33 +25,35 @@ model OnboardingSession {
   submittedAt DateTime?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
-
-  // inverse of 1–1 relation
   client      Client?
 }
 
 model Client {
-  id                   String           @id @default(cuid())
-  email                String           @unique
-  fullName             String
-  ssn                  String
-  dob                  DateTime
+  id       String @id @default(cuid())
+  email    String @unique
+  fullName String
 
-  // Money-like values: Prisma Decimal → Postgres NUMERIC (no @db needed)
-  netWorth             Decimal
-  income               Decimal
-  investableAssets     Decimal
+  // 🔐 Encrypted SSN at rest (AES-256-GCM), plus last4 for UX
+  ssnLast4      String
+  ssnCiphertext String
+  ssnIv         String
+  ssnTag        String
 
-  riskTolerance        RiskTolerance
-  termsAccepted        Boolean
-  kycCitizenship       String?
-  kycEmploymentStatus  String?
-  kycSourceOfFunds     String?
+  dob DateTime
 
-  // 1–1 link to session (FK lives on Client)
-  onboardingSessionId  String?          @unique
-  onboardingSession    OnboardingSession? @relation(fields: [onboardingSessionId], references: [id])
+  netWorth         Decimal
+  income           Decimal
+  investableAssets Decimal
 
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
+  riskTolerance       RiskTolerance
+  termsAccepted       Boolean
+  kycCitizenship      String?
+  kycEmploymentStatus String?
+  kycSourceOfFunds    String?
+
+  onboardingSessionId String?            @unique
+  onboardingSession   OnboardingSession? @relation(fields: [onboardingSessionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

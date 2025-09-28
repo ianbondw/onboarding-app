@@ -1,208 +1,41 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { useForm, FormProvider, Controller } from "react-hook-form";
+import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useForm, Controller, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import CurrencyInput from "@/components/CurrencyInput";
 import {
   onboardingSchema,
   defaultValues,
   type OnboardingValues,
 } from "@/lib/validations";
 
-/** ---------- helpers (formatters) ---------- */
-const clampDigits = (s: string, max = 12) => s.replace(/\D/g, "").slice(0, max);
-const formatSSN = (input: string): string => {
-  const d = clampDigits(input, 9);
-  if (d.length <= 3) return d;
-  if (d.length <= 5) return `${d.slice(0, 3)}-${d.slice(3)}`;
-  return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
-};
-const formatIntWithCommas = (n: number | string): string => {
-  const s = String(n ?? "");
-  if (!s) return "";
-  return s.replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-};
-const parseCommaNumber = (s: string): number | undefined => {
-  const clean = s.replace(/,/g, "").trim();
-  if (!clean) return undefined;
-  const n = Number(clean);
-  return Number.isFinite(n) ? n : undefined;
-};
+type Props = { token: string };
 
-/** ---------- visual tokens ---------- */
-const color = {
-  text: "#0f172a",
-  subtext: "#475569",
-  border: "#e5e7eb",
-  bg: "#ffffff",
-  bgAlt: "#f8fafc",
-  accent: "#111827",
-  accentText: "#ffffff",
-  error: "#b91c1c",
-};
-const card = {
-  border: `1px solid ${color.border}`,
-  radius: 12,
-  pad: 16,
-};
-
-const steps = [
-  { key: "client", label: "Client Info" },
-  { key: "financial", label: "Financial Info" },
-  { key: "compliance", label: "Compliance" },
-  { key: "review", label: "Review & Submit" },
-];
-
-const stepFieldKeys: Record<number, (keyof OnboardingValues | `kyc.${string}`)[]> = {
-  0: ["fullName", "ssn", "dob", "email", "netWorth"],
-  1: ["income", "investableAssets", "riskTolerance"],
-  2: ["termsAccepted", "kyc.citizenship", "kyc.employmentStatus", "kyc.sourceOfFunds"],
-  3: [],
-};
-
-/** ---------- UI primitives ---------- */
-const Section = ({
-  title,
-  children,
-}: React.PropsWithChildren<{ title: string }>) => (
-  <section
-    style={{
-      ...card,
-      borderRadius: card.radius,
-      padding: card.pad,
-      background: color.bg,
-    }}
-  >
-    <div style={{ fontWeight: 700, marginBottom: 12 }}>{title}</div>
-    <div style={{ display: "grid", gap: 12 }}>{children}</div>
-  </section>
-);
-
-const Row = ({ children }: React.PropsWithChildren) => (
-  <div
-    style={{
-      display: "grid",
-      gap: 12,
-      gridTemplateColumns: "1fr 1fr",
-      alignItems: "baseline",
-    }}
-  >
-    {children}
-  </div>
-);
-
-const Label = ({
-  htmlFor,
-  children,
-  hint,
-}: {
-  htmlFor?: string;
-  children: React.ReactNode;
-  hint?: string;
-}) => (
-  <div style={{ display: "grid", gap: 4 }}>
-    <label htmlFor={htmlFor} style={{ fontSize: 14, color: color.text, fontWeight: 600 }}>
-      {children}
-    </label>
-    {hint ? (
-      <div style={{ fontSize: 12, color: color.subtext, lineHeight: 1.4 }}>{hint}</div>
-    ) : null}
-  </div>
-);
-
-const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
-  <input
-    {...props}
-    style={{
-      width: "100%",
-      padding: "10px 12px",
-      borderRadius: 10,
-      border: `1px solid ${color.border}`,
-      outline: "none",
-    }}
-  />
-);
-
-const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
-  <select
-    {...props}
-    style={{
-      width: "100%",
-      padding: "10px 12px",
-      borderRadius: 10,
-      border: `1px solid ${color.border}`,
-      background: color.bg,
-      outline: "none",
-    }}
-  />
-);
-
-const ErrorText = ({ show, msg }: { show?: boolean; msg?: string }) =>
-  show && msg ? (
-    <div style={{ color: color.error, fontSize: 12, marginTop: 6 }}>{msg}</div>
-  ) : null;
-
-function Segmented({
-  value,
-  onChange,
-  options,
-  name,
-}: {
-  value?: string;
-  onChange: (v: string) => void;
-  options: { label: string; value: string }[];
-  name: string;
-}) {
-  return (
-    <div
-      role="radiogroup"
-      aria-labelledby={`${name}-label`}
-      style={{
-        display: "inline-flex",
-        border: `1px solid ${color.border}`,
-        borderRadius: 12,
-        overflow: "hidden",
-      }}
-    >
-      {options.map((o, i) => {
-        const active = value === o.value;
-        return (
-          <button
-            type="button"
-            key={o.value}
-            onClick={() => onChange(o.value)}
-            style={{
-              padding: "8px 14px",
-              border: "none",
-              background: active ? color.accent : color.bg,
-              color: active ? color.accentText : color.text,
-              borderRight: i < options.length - 1 ? `1px solid ${color.border}` : "none",
-              cursor: "pointer",
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
+// Simple SSN masker for UX only (validation enforces proper format)
+function formatSSN(v: string) {
+  const digits = v.replace(/\D/g, "").slice(0, 9);
+  const a = digits.slice(0, 3);
+  const b = digits.slice(3, 5);
+  const c = digits.slice(5, 9);
+  let out = a;
+  if (b) out += "-" + b;
+  if (c) out += "-" + c;
+  return out;
 }
 
-/** ---------- main component ---------- */
-export default function OnboardingWizard() {
+export default function Wizard({ token }: Props) {
   const router = useRouter();
-  const params = useParams<{ token: string }>();
-  const token = params?.token;
+  const [step, setStep] = useState(0);
 
   const methods = useForm<OnboardingValues>({
-    mode: "onBlur",
-    reValidateMode: "onBlur",
-    resolver: zodResolver(onboardingSchema.partial()),
+    resolver: zodResolver(onboardingSchema),
     defaultValues,
-    shouldFocusError: true,
-    criteriaMode: "firstError",
+    mode: "onBlur", // don't nag while typing
+    reValidateMode: "onSubmit",
+    shouldUnregister: false,
   });
 
   const {
@@ -210,459 +43,427 @@ export default function OnboardingWizard() {
     control,
     handleSubmit,
     trigger,
-    getValues,
-    formState: { errors, touchedFields, isSubmitting },
+    formState: { errors, isSubmitting },
+    setValue,
+    watch,
   } = methods;
 
-  const [activeStep, setActiveStep] = useState(0);
-  const [showStepErrors, setShowStepErrors] = useState(false);
-
-  const isLast = activeStep === steps.length - 1;
-  const isFirst = activeStep === 0;
-  const shouldShow = (name: keyof OnboardingValues) =>
-    showStepErrors || Boolean((touchedFields as any)?.[name]);
-
-  const Progress = () => (
-    <header style={{ padding: "8px 0 4px 0" }}>
-      <h1 style={{ margin: "0 0 12px 0", fontSize: 20, fontWeight: 800, color: color.text }}>
-        Onboarding App
-      </h1>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {steps.map((s, idx) => {
-          const active = idx === activeStep;
-          const complete = idx < activeStep;
-          return (
-            <div
-              key={s.key}
-              style={{
-                padding: "6px 12px",
-                borderRadius: 999,
-                fontSize: 13,
-                border: `1px solid ${color.border}`,
-                background: active ? color.accent : complete ? color.bgAlt : color.bg,
-                color: active ? color.accentText : color.text,
-              }}
-            >
-              {idx + 1}. {s.label}
-            </div>
-          );
-        })}
-      </div>
-    </header>
+  const stepFields: (keyof OnboardingValues)[][] = useMemo(
+    () => [
+      ["fullName", "email", "ssn", "dob", "netWorth"],
+      ["income", "investableAssets", "riskTolerance"],
+      ["termsAccepted"],
+      [], // review has no new inputs
+    ],
+    []
   );
 
-  const next = async () => {
-    const fields = stepFieldKeys[activeStep] ?? [];
-    if (fields.length > 0) {
-      const ok = await trigger(fields as any);
-      if (!ok) {
-        setShowStepErrors(true);
-        const firstKey = Object.keys(errors)[0];
-        if (firstKey) document.getElementById(firstKey)?.scrollIntoView({ behavior: "smooth", block: "center" });
-        return;
-      }
-    }
-    setShowStepErrors(false);
-    setActiveStep((s) => Math.min(s + 1, steps.length - 1));
-  };
+  async function next() {
+    const valid = await trigger(stepFields[step] as any);
+    if (valid) setStep((s) => Math.min(s + 1, 3));
+  }
 
-  const back = () => {
-    setShowStepErrors(false);
-    setActiveStep((s) => Math.max(s - 1, 0));
-  };
+  function back() {
+    setStep((s) => Math.max(s - 1, 0));
+  }
 
-  const onSubmit = handleSubmit(async (values) => {
-    const res = await fetch(`/api/onboarding/${encodeURIComponent(token)}`, {
+  async function onSubmit(values: OnboardingValues) {
+    // Submit all validated data to API
+    const res = await fetch(`/api/onboarding/${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(values),
     });
+
     if (!res.ok) {
-      const { error } = await res.json().catch(() => ({ error: "Submission failed" }));
-      alert(error || "Submission failed");
+      const j = await res.json().catch(() => ({}));
+      alert(j?.error ?? "Submit failed");
       return;
     }
-    router.push(`/onboarding/${encodeURIComponent(token)}/done`);
-  });
-
-  /** --------- Steps ---------- */
-  function Step1() {
-    return (
-      <Section title="Step 1 — Client Info">
-        <Row>
-          <div>
-            <Label htmlFor="fullName" hint="Legal name as it appears on government ID.">
-              Full Name
-            </Label>
-            <Input id="fullName" {...register("fullName")} placeholder="Jane Q. Doe" />
-            <ErrorText show={shouldShow("fullName")} msg={errors.fullName?.message} />
-          </div>
-
-          <div>
-            <Label htmlFor="email" hint="We’ll send document e-sign and status updates here.">
-              Email
-            </Label>
-            <Input id="email" type="email" {...register("email")} placeholder="jane@example.com" />
-            <ErrorText show={shouldShow("email")} msg={errors.email?.message} />
-          </div>
-        </Row>
-
-        <Row>
-          <div>
-            <Label htmlFor="ssn" hint="Used for CIP/KYC; encrypted and stored securely.">
-              SSN (XXX-XX-XXXX)
-            </Label>
-            <Controller
-              name="ssn"
-              control={control}
-              render={({ field }) => (
-                <Input
-                  id="ssn"
-                  inputMode="numeric"
-                  placeholder="123-45-6789"
-                  value={field.value || ""}
-                  onChange={(e) => field.onChange(formatSSN(e.target.value))}
-                  onBlur={field.onBlur}
-                />
-              )}
-            />
-            <ErrorText show={shouldShow("ssn")} msg={errors.ssn?.message} />
-          </div>
-
-          <div>
-            <Label htmlFor="dob" hint="You must be at least 18 years old.">
-              Date of Birth
-            </Label>
-            <Input id="dob" type="date" {...register("dob")} />
-            <ErrorText show={shouldShow("dob")} msg={errors.dob?.message} />
-          </div>
-        </Row>
-
-        <Row>
-          <div>
-            <Label htmlFor="netWorth" hint="Approximate total assets minus liabilities.">
-              Net Worth
-            </Label>
-            <Controller
-              name="netWorth"
-              control={control}
-              render={({ field }) => {
-                const [display, setDisplay] = useState<string>("");
-                useEffect(() => {
-                  // initialize display from numeric value
-                  if (typeof field.value === "number") {
-                    setDisplay(field.value ? formatIntWithCommas(field.value) : "");
-                  }
-                }, []);
-                return (
-                  <Input
-                    id="netWorth"
-                    inputMode="numeric"
-                    placeholder="e.g., 750,000"
-                    value={display}
-                    onChange={(e) => {
-                      const digits = formatIntWithCommas(e.target.value);
-                      setDisplay(digits);
-                      const parsed = parseCommaNumber(digits);
-                      field.onChange(parsed ?? "");
-                    }}
-                    onBlur={field.onBlur}
-                  />
-                );
-              }}
-            />
-            <ErrorText show={shouldShow("netWorth")} msg={errors.netWorth?.message} />
-          </div>
-          <div />
-        </Row>
-      </Section>
-    );
+    router.push(`/onboarding/${token}/done`);
   }
 
-  function Step2() {
-    return (
-      <Section title="Step 2 — Financial Info">
-        <Row>
-          <div>
-            <Label htmlFor="income" hint="Annual gross income.">
-              Income
-            </Label>
-            <Controller
-              name="income"
-              control={control}
-              render={({ field }) => {
-                const [display, setDisplay] = useState<string>("");
-                useEffect(() => {
-                  if (typeof field.value === "number") {
-                    setDisplay(field.value ? formatIntWithCommas(field.value) : "");
-                  }
-                }, []);
-                return (
-                  <Input
-                    id="income"
-                    inputMode="numeric"
-                    placeholder="e.g., 200,000"
-                    value={display}
-                    onChange={(e) => {
-                      const d = formatIntWithCommas(e.target.value);
-                      setDisplay(d);
-                      field.onChange(parseCommaNumber(d) ?? "");
-                    }}
-                    onBlur={field.onBlur}
-                  />
-                );
-              }}
-            />
-            <ErrorText show={shouldShow("income")} msg={errors.income?.message} />
-          </div>
-
-          <div>
-            <Label htmlFor="investableAssets" hint="Liquid assets you could transfer (cash, brokerage, etc.).">
-              Investable Assets
-            </Label>
-            <Controller
-              name="investableAssets"
-              control={control}
-              render={({ field }) => {
-                const [display, setDisplay] = useState<string>("");
-                useEffect(() => {
-                  if (typeof field.value === "number") {
-                    setDisplay(field.value ? formatIntWithCommas(field.value) : "");
-                  }
-                }, []);
-                return (
-                  <Input
-                    id="investableAssets"
-                    inputMode="numeric"
-                    placeholder="e.g., 120,000"
-                    value={display}
-                    onChange={(e) => {
-                      const d = formatIntWithCommas(e.target.value);
-                      setDisplay(d);
-                      field.onChange(parseCommaNumber(d) ?? "");
-                    }}
-                    onBlur={field.onBlur}
-                  />
-                );
-              }}
-            />
-            <ErrorText
-              show={shouldShow("investableAssets")}
-              msg={errors.investableAssets?.message}
-            />
-          </div>
-        </Row>
-
-        <Row>
-          <div>
-            <Label htmlFor="riskTolerance" hint="Choose the closest fit; you can refine later.">
-              Risk Tolerance
-            </Label>
-            <Controller
-              name="riskTolerance"
-              control={control}
-              render={({ field }) => (
-                <Segmented
-                  name="riskTolerance"
-                  value={field.value}
-                  onChange={field.onChange}
-                  options={[
-                    { value: "Low", label: "Low" },
-                    { value: "Medium", label: "Medium" },
-                    { value: "High", label: "High" },
-                  ]}
-                />
-              )}
-            />
-            <ErrorText show={shouldShow("riskTolerance")} msg={errors.riskTolerance?.message} />
-          </div>
-          <div />
-        </Row>
-      </Section>
-    );
-  }
-
-  function Step3() {
-    return (
-      <Section title="Step 3 — Compliance & Agreements">
-        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-          <input id="termsAccepted" type="checkbox" {...register("termsAccepted")} />
-          <Label htmlFor="termsAccepted" hint="Reg BI / CIP / AML acknowledgment">
-            I confirm the information provided is true and acknowledge the disclosures.
-          </Label>
-        </div>
-        <ErrorText
-          show={shouldShow("termsAccepted")}
-          msg={errors.termsAccepted?.message as string | undefined}
-        />
-
-        <div style={{ marginTop: 6, fontSize: 13, color: color.subtext }}>
-          Optional KYC (expandable later)
-        </div>
-
-        <Row>
-          <div>
-            <Label htmlFor="kyc.citizenship">Citizenship</Label>
-            <Select id="kyc.citizenship" {...register("kyc.citizenship")}>
-              <option value="">Select…</option>
-              <option value="US">US</option>
-              <option value="Non-US">Non-US</option>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="kyc.employmentStatus">Employment Status</Label>
-            <Select id="kyc.employmentStatus" {...register("kyc.employmentStatus")}>
-              <option value="">Select…</option>
-              <option value="Employed">Employed</option>
-              <option value="Self-Employed">Self-Employed</option>
-              <option value="Unemployed">Unemployed</option>
-              <option value="Retired">Retired</option>
-              <option value="Student">Student</option>
-            </Select>
-          </div>
-        </Row>
-        <Row>
-          <div>
-            <Label htmlFor="kyc.sourceOfFunds">Source of Funds</Label>
-            <Select id="kyc.sourceOfFunds" {...register("kyc.sourceOfFunds")}>
-              <option value="">Select…</option>
-              <option value="Employment">Employment</option>
-              <option value="Savings">Savings</option>
-              <option value="Business">Business</option>
-              <option value="Inheritance">Inheritance</option>
-              <option value="Other">Other</option>
-            </Select>
-          </div>
-          <div />
-        </Row>
-      </Section>
-    );
-  }
-
-  function Step4() {
-    const v = getValues();
-    const Item = ({ label, value }: { label: string; value?: React.ReactNode }) => (
-      <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12 }}>
-        <div style={{ color: color.subtext }}>{label}</div>
-        <div>{String(value ?? "—")}</div>
-      </div>
-    );
-
-    return (
-      <Section title="Step 4 — Review & Submit">
-        <div style={{ display: "grid", gap: 16 }}>
-          <div style={{ fontWeight: 700 }}>Client</div>
-          <Item label="Full Name" value={v.fullName} />
-          <Item label="Email" value={v.email} />
-          <Item label="SSN" value={v.ssn} />
-          <Item label="DOB" value={v.dob} />
-          <Item label="Net Worth" value={v.netWorth?.toLocaleString?.() ?? v.netWorth} />
-
-          <div style={{ height: 1, background: color.border }} />
-
-          <div style={{ fontWeight: 700 }}>Financial</div>
-          <Item label="Income" value={v.income?.toLocaleString?.() ?? v.income} />
-          <Item
-            label="Investable Assets"
-            value={v.investableAssets?.toLocaleString?.() ?? v.investableAssets}
-          />
-          <Item label="Risk Tolerance" value={v.riskTolerance} />
-
-          <div style={{ height: 1, background: color.border }} />
-
-          <div style={{ fontWeight: 700 }}>Compliance</div>
-          <Item label="Confirmed & Acknowledged" value={v.termsAccepted ? "Yes" : "No"} />
-          <Item label="Citizenship" value={v.kyc?.citizenship} />
-          <Item label="Employment Status" value={v.kyc?.employmentStatus} />
-          <Item label="Source of Funds" value={v.kyc?.sourceOfFunds} />
-        </div>
-
-        <div style={{ marginTop: 8, fontSize: 12, color: color.subtext }}>
-          Use “Back” to edit any section before submitting.
-        </div>
-      </Section>
-    );
-  }
+  const current = watch();
 
   return (
-    <FormProvider {...methods}>
-      <form
-        onSubmit={onSubmit}
-        style={{
-          maxWidth: 960,
-          margin: "24px auto",
-          display: "grid",
-          gap: 16,
-          padding: "0 16px 88px",
-        }}
-      >
-        <Progress />
+    <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px" }}>
+      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>Onboarding App</h1>
 
-        {activeStep === 0 && <Step1 />}
-        {activeStep === 1 && <Step2 />}
-        {activeStep === 2 && <Step3 />}
-        {activeStep === 3 && <Step4 />}
+      {/* Progress pills */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        {["1. Client Info", "2. Financial Info", "3. Compliance", "4. Review & Submit"].map(
+          (label, i) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setStep(i)}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 999,
+                border: "1px solid #E2E8F0",
+                background: i === step ? "#111827" : "#F1F5F9",
+                color: i === step ? "#fff" : "#111827",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          )
+        )}
+      </div>
 
-        {/* Sticky footer actions */}
-        <div
-          style={{
-            position: "sticky",
-            bottom: 12,
-            display: "flex",
-            justifyContent: "space-between",
-            paddingTop: 8,
-          }}
-        >
-          <button
-            type="button"
-            onClick={back}
-            disabled={isFirst || isSubmitting}
+      <FormProvider {...methods}>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          {/* Card */}
+          <div
             style={{
-              padding: "10px 16px",
-              borderRadius: 10,
-              border: `1px solid ${color.border}`,
-              background: isFirst ? "#f3f4f6" : color.bg,
-              color: color.text,
-              cursor: isFirst ? "not-allowed" : "pointer",
+              border: "1px solid #E2E8F0",
+              borderRadius: 12,
+              padding: 20,
+              background: "#fff",
+              marginBottom: 16,
             }}
           >
-            Back
-          </button>
+            {step === 0 && (
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>
+                  Step 1 — Client Info
+                </h2>
 
-          {!isLast ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 16,
+                  }}
+                >
+                  {/* Full Name */}
+                  <div>
+                    <label style={{ fontWeight: 600 }}>Full Name</label>
+                    <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+                      Legal name as it appears on government ID.
+                    </div>
+                    <input
+                      {...register("fullName")}
+                      placeholder="Jane Q. Doe"
+                      autoComplete="name"
+                      className="input"
+                      style={inputStyle(errors.fullName)}
+                    />
+                    <FieldError msg={errors.fullName?.message} />
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label style={{ fontWeight: 600 }}>Email</label>
+                    <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+                      We’ll send document e-sign and status updates here.
+                    </div>
+                    <input
+                      {...register("email")}
+                      type="email"
+                      placeholder="jane@example.com"
+                      autoComplete="email"
+                      style={inputStyle(errors.email)}
+                    />
+                    <FieldError msg={errors.email?.message} />
+                  </div>
+
+                  {/* SSN */}
+                  <div>
+                    <label style={{ fontWeight: 600 }}>SSN (XXX-XX-XXXX)</label>
+                    <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+                      Used for CIP/KYC; encrypted and stored securely.
+                    </div>
+                    <input
+                      {...register("ssn")}
+                      inputMode="numeric"
+                      placeholder="123-45-6789"
+                      onChange={(e) => setValue("ssn", formatSSN(e.target.value))}
+                      style={inputStyle(errors.ssn)}
+                    />
+                    <FieldError msg={errors.ssn?.message} />
+                  </div>
+
+                  {/* DOB */}
+                  <div>
+                    <label style={{ fontWeight: 600 }}>Date of Birth</label>
+                    <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+                      You must be at least 18 years old.
+                    </div>
+                    <input
+                      {...register("dob")}
+                      type="date"
+                      placeholder="mm/dd/yyyy"
+                      style={inputStyle(errors.dob)}
+                    />
+                    <FieldError msg={errors.dob?.message} />
+                  </div>
+
+                  {/* Net Worth — CurrencyInput */}
+                  <div style={{ gridColumn: "1 / span 2" }}>
+                    <label style={{ fontWeight: 600 }}>Net Worth</label>
+                    <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+                      Approximate total assets minus liabilities.
+                    </div>
+                    <Controller
+                      control={control}
+                      name="netWorth"
+                      render={({ field, fieldState }) => (
+                        <CurrencyInput
+                          id="netWorth"
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="e.g., 750,000"
+                          aria-invalid={!!fieldState.error}
+                        />
+                      )}
+                    />
+                    <FieldError msg={errors.netWorth?.message} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 1 && (
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>
+                  Step 2 — Financial Info
+                </h2>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 16,
+                  }}
+                >
+                  {/* Income — CurrencyInput */}
+                  <div>
+                    <label style={{ fontWeight: 600 }}>Income</label>
+                    <Controller
+                      control={control}
+                      name="income"
+                      render={({ field, fieldState }) => (
+                        <CurrencyInput
+                          id="income"
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="e.g., 200,000"
+                          aria-invalid={!!fieldState.error}
+                        />
+                      )}
+                    />
+                    <FieldError msg={errors.income?.message} />
+                  </div>
+
+                  {/* Investable Assets — CurrencyInput */}
+                  <div>
+                    <label style={{ fontWeight: 600 }}>Investable Assets</label>
+                    <Controller
+                      control={control}
+                      name="investableAssets"
+                      render={({ field, fieldState }) => (
+                        <CurrencyInput
+                          id="investableAssets"
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="e.g., 100,000"
+                          aria-invalid={!!fieldState.error}
+                        />
+                      )}
+                    />
+                    <FieldError msg={errors.investableAssets?.message} />
+                  </div>
+
+                  {/* Risk Tolerance */}
+                  <div style={{ gridColumn: "1 / span 2" }}>
+                    <label style={{ fontWeight: 600 }}>Risk Tolerance</label>
+                    <select
+                      {...register("riskTolerance")}
+                      style={{
+                        ...inputStyle(errors.riskTolerance),
+                        height: 44,
+                      }}
+                    >
+                      <option value="Low">Low</option>
+                      <option value="Medium">Medium</option>
+                      <option value="High">High</option>
+                    </select>
+                    <FieldError msg={errors.riskTolerance?.message} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>
+                  Step 3 — Compliance & Agreements
+                </h2>
+
+                <div style={{ display: "grid", gap: 16 }}>
+                  <label style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <input type="checkbox" {...register("termsAccepted")} />
+                    <span>
+                      I confirm the information provided is true and acknowledge the disclosures.
+                    </span>
+                  </label>
+                  <FieldError msg={errors.termsAccepted?.message} />
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                    <div>
+                      <label style={{ fontWeight: 600 }}>Citizenship (optional)</label>
+                      <input
+                        {...register("kyc.citizenship")}
+                        placeholder="US / Non-US"
+                        style={inputStyle(undefined)}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontWeight: 600 }}>Employment Status (optional)</label>
+                      <input
+                        {...register("kyc.employmentStatus")}
+                        placeholder="Employed / Self-employed / Retired"
+                        style={inputStyle(undefined)}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontWeight: 600 }}>Source of Funds (optional)</label>
+                      <input
+                        {...register("kyc.sourceOfFunds")}
+                        placeholder="Employment / Inheritance / Other"
+                        style={inputStyle(undefined)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>
+                  Step 4 — Review & Submit
+                </h2>
+
+                {/* Review blocks */}
+                <Section title="Client">
+                  <Row label="Full Name" value={current.fullName} />
+                  <Row label="Email" value={current.email} />
+                  <Row label="SSN" value={current.ssn} />
+                  <Row label="DOB" value={current.dob} />
+                  <Row label="Net Worth" value={fmtUSD(current.netWorth)} />
+                </Section>
+
+                <Section title="Financial">
+                  <Row label="Income" value={fmtUSD(current.income)} />
+                  <Row label="Investable Assets" value={fmtUSD(current.investableAssets)} />
+                  <Row label="Risk Tolerance" value={current.riskTolerance} />
+                </Section>
+
+                <Section title="Compliance">
+                  <Row label="Confirmed & Acknowledged" value={current.termsAccepted ? "Yes" : "No"} />
+                  <Row label="Citizenship" value={current.kyc?.citizenship || "—"} />
+                  <Row label="Employment Status" value={current.kyc?.employmentStatus || "—"} />
+                  <Row label="Source of Funds" value={current.kyc?.sourceOfFunds || "—"} />
+                </Section>
+
+                <p style={{ color: "#64748B", fontSize: 12 }}>
+                  Use “Back” to edit any section before submitting.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Footer buttons */}
+          <div style={{ display: "flex", gap: 12, justifyContent: "space-between" }}>
             <button
               type="button"
-              onClick={next}
-              disabled={isSubmitting}
-              style={{
-                padding: "10px 16px",
-                borderRadius: 10,
-                border: `1px solid ${color.accent}`,
-                background: color.accent,
-                color: color.accentText,
-                cursor: "pointer",
-              }}
+              onClick={back}
+              disabled={step === 0 || isSubmitting}
+              style={secondaryButtonStyle}
             >
-              Next
+              Back
             </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              style={{
-                padding: "10px 16px",
-                borderRadius: 10,
-                border: `1px solid ${color.accent}`,
-                background: color.accent,
-                color: color.accentText,
-                cursor: "pointer",
-              }}
-            >
-              {isSubmitting ? "Submitting…" : "Submit"}
-            </button>
-          )}
-        </div>
-      </form>
-    </FormProvider>
+
+            {step < 3 ? (
+              <button type="button" onClick={next} style={primaryButtonStyle}>
+                Next
+              </button>
+            ) : (
+              <button type="submit" disabled={isSubmitting} style={primaryButtonStyle}>
+                {isSubmitting ? "Submitting…" : "Submit"}
+              </button>
+            )}
+          </div>
+        </form>
+      </FormProvider>
+    </div>
   );
+}
+
+/* -------------------------- helpers / tiny UI bits ------------------------- */
+
+function inputStyle(error?: unknown): React.CSSProperties {
+  return {
+    width: "100%",
+    height: 44,
+    padding: "10px 12px",
+    borderRadius: 8,
+    border: `1px solid ${error ? "#ef4444" : "#E2E8F0"}`,
+    background: "#fff",
+    outline: "none",
+  };
+}
+
+function FieldError({ msg }: { msg?: string }) {
+  if (!msg) return null;
+  return <div style={{ color: "#ef4444", fontSize: 12, marginTop: 6 }}>{msg}</div>;
+}
+
+function Section({ title, children }: React.PropsWithChildren<{ title: string }>) {
+  return (
+    <div style={{ paddingTop: 8, marginBottom: 16 }}>
+      <h3 style={{ fontWeight: 700, marginBottom: 8 }}>{title}</h3>
+      <div style={{ borderTop: "1px solid #E2E8F0" }} />
+      <div style={{ display: "grid", gap: 10, paddingTop: 10 }}>{children}</div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 8 }}>
+      <div style={{ color: "#64748B" }}>{label}</div>
+      <div style={{ fontWeight: 600 }}>{String(value ?? "—")}</div>
+    </div>
+  );
+}
+
+const primaryButtonStyle: React.CSSProperties = {
+  padding: "10px 16px",
+  borderRadius: 10,
+  background: "#111827",
+  color: "#fff",
+  fontWeight: 700,
+  border: "none",
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  padding: "10px 16px",
+  borderRadius: 10,
+  background: "#F1F5F9",
+  color: "#0f172a",
+  fontWeight: 600,
+  border: "1px solid #E2E8F0",
+  cursor: "pointer",
+};
+
+function fmtUSD(v: any) {
+  const n = typeof v === "string" ? Number(v.replace(/[^\d.-]/g, "")) : Number(v);
+  if (Number.isNaN(n)) return "—";
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 }

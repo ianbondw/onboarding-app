@@ -1,55 +1,72 @@
 import { z } from "zod";
 
-const isAdult = (iso: string) => {
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return false;
-  const dob = new Date(t);
-  const now = new Date();
-  const age =
-    now.getFullYear() - dob.getFullYear() -
-    (now < new Date(now.getFullYear(), dob.getMonth(), dob.getDate()) ? 1 : 0);
-  return age >= 18;
+/** Strip $, commas, spaces; keep digits, optional minus and dot. */
+const toNumber = (val: unknown) => {
+  if (typeof val === "string") {
+    const cleaned = val.replace(/[^\d.-]/g, "");
+    return cleaned === "" ? NaN : Number(cleaned);
+  }
+  return val;
 };
 
+const currency = z.preprocess(toNumber, z.number().min(0, "Must be 0 or greater"));
+
+const eighteenYearsAgo = (() => {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 18);
+  return d;
+})();
+
 export const onboardingSchema = z.object({
-  // Step 1 – Client Info
-  fullName: z.string().min(2, "Full name is required"),
-  ssn: z.string().regex(/^\d{3}-\d{2}-\d{4}$/, "SSN must be in the format XXX-XX-XXXX"),
-  dob: z.string().refine(isAdult, "Applicant must be at least 18"),
-  email: z.string().email("Valid email is required"),
-  netWorth: z.coerce.number({ invalid_type_error: "Net worth must be a number" }).nonnegative("Net worth cannot be negative"),
+  // Step 1 — Client
+  fullName: z.string().min(2, "Enter your full name"),
+  email: z.string().email("Enter a valid email"),
+  ssn: z
+    .string()
+    .regex(/^\d{3}-\d{2}-\d{4}$/, "SSN must be in the form XXX-XX-XXXX"),
+  dob: z
+    .string()
+    .refine((v) => !Number.isNaN(Date.parse(v)), "Enter a valid date")
+    .refine((v) => new Date(v) <= eighteenYearsAgo, "You must be at least 18."),
 
-  // Step 2 – Financial Info
-  income: z.coerce.number({ invalid_type_error: "Income must be a number" }).nonnegative("Income cannot be negative"),
-  investableAssets: z.coerce.number({ invalid_type_error: "Investable assets must be a number" }).nonnegative("Investable assets cannot be negative"),
-  riskTolerance: z.enum(["Low", "Medium", "High"], { required_error: "Select a risk tolerance" }),
+  netWorth: currency,
 
-  // Step 3 – Compliance
-  termsAccepted: z.literal(true, { errorMap: () => ({ message: "You must confirm to continue" }) }),
+  // Step 2 — Financial
+  income: currency,
+  investableAssets: currency,
+  riskTolerance: z.enum(["Low", "Medium", "High"]),
 
-  // Optional KYC/AML
-  kyc: z.object({
-    citizenship: z.enum(["US", "Non-US"]).optional(),
-    employmentStatus: z.enum(["Employed", "Self-Employed", "Unemployed", "Retired", "Student"]).optional(),
-    sourceOfFunds: z.enum(["Employment", "Savings", "Business", "Inheritance", "Other"]).optional(),
-  }).partial().optional(),
+  // Step 3 — Compliance
+  termsAccepted: z.literal(true, {
+    errorMap: () => ({ message: "You must acknowledge the disclosures" }),
+  }),
+
+  // Optional KYC/AML block (all optional; safe to expand later)
+  kyc: z
+    .object({
+      citizenship: z.string().optional(),
+      employmentStatus: z.string().optional(),
+      sourceOfFunds: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type OnboardingValues = z.infer<typeof onboardingSchema>;
 
+/** Default values for RHF */
 export const defaultValues: OnboardingValues = {
   fullName: "",
+  email: "",
   ssn: "",
   dob: "",
-  email: "",
-  netWorth: 0,
-  income: 0,
-  investableAssets: 0,
+  netWorth: "" as any, // RHF will hold a string; zod will coerce to number
+  income: "" as any,
+  investableAssets: "" as any,
   riskTolerance: "Medium",
   termsAccepted: false,
   kyc: {
-    citizenship: undefined,
-    employmentStatus: undefined,
-    sourceOfFunds: undefined,
+    citizenship: "",
+    employmentStatus: "",
+    sourceOfFunds: "",
   },
 };
