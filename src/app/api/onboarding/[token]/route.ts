@@ -9,22 +9,13 @@ import { encryptSSN, ssnLast4 } from "@/lib/crypto";
 import { rateLimit } from "@/lib/rateLimit";
 
 // GET /api/onboarding/[token]
-export async function GET(
-  _req: Request,
-  context: { params: { token: string } }
-) {
-  const { params } = context;
+export async function GET(_req: Request, { params }: any) {
   const token = params?.token ?? "(missing)";
   return NextResponse.json({ ok: true, method: "GET", message: "API alive", token });
 }
 
 // POST /api/onboarding/[token]
-export async function POST(
-  req: Request,
-  context: { params: { token: string } }
-) {
-  const { params } = context;
-
+export async function POST(req: Request, { params }: any) {
   try {
     const token = params?.token;
     if (!token) {
