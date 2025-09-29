@@ -295,7 +295,8 @@
     "start": "next start",
     "lint": "next lint",
     "prisma:studio": "prisma studio",
-    "prisma:deploy": "prisma migrate deploy"
+    "prisma:deploy": "prisma migrate deploy",
+    "postinstall": "prisma generate"
   },
   "repository": {
     "type": "git",

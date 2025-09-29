@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 // src/app/api/onboarding/[token]/route.ts
 import { NextResponse } from "next/server";
 import type { RiskTolerance } from "@prisma/client";
