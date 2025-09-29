@@ -5,7 +5,6 @@ import type { RiskTolerance } from "@prisma/client";
 import { onboardingSchema } from "@/lib/validations";
 import { prisma } from "@/lib/db";
 import { encryptSSN, ssnLast4 } from "@/lib/crypto";
-import { rateLimit } from "@/lib/rateLimit";
 
 // GET /api/onboarding/[token]
 export async function GET(_req: Request, { params }: any) {
@@ -19,23 +18,6 @@ export async function POST(req: Request, { params }: any) {
     const token = params?.token;
     if (!token) {
       return NextResponse.json({ error: "Missing token" }, { status: 400 });
-    }
-
-    // Use request headers
-    const forwardedFor = req.headers.get("x-forwarded-for");
-    const ip =
-      forwardedFor?.split(",")[0]?.trim() ||
-      req.headers.get("x-real-ip") ||
-      "local";
-
-    // Call rateLimit with just a number (your helper expects limit only)
-    try {
-      const rl = rateLimit?.(`onboarding:${ip}`, 5);
-      if (rl && !rl.allowed) {
-        return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-      }
-    } catch {
-      // ignore limiter errors
     }
 
     const body = await req.json();
