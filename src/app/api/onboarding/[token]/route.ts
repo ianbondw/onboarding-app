@@ -1,5 +1,5 @@
 // src/app/api/onboarding/[token]/route.ts
-import { NextResponse, NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import type { RiskTolerance } from "@prisma/client";
 
 import { onboardingSchema } from "@/lib/validations";
@@ -10,7 +10,7 @@ import { rateLimit } from "@/lib/rateLimit";
 
 // GET /api/onboarding/[token]
 export async function GET(
-  _req: NextRequest,
+  _req: Request,
   { params }: { params: { token: string } }
 ) {
   const token = params?.token ?? "(missing)";
@@ -19,7 +19,7 @@ export async function GET(
 
 // POST /api/onboarding/[token]
 export async function POST(
-  req: NextRequest,
+  req: Request,
   { params }: { params: { token: string } }
 ) {
   try {
@@ -28,13 +28,13 @@ export async function POST(
       return NextResponse.json({ error: "Missing token" }, { status: 400 });
     }
 
-    // Optional: tiny in-memory rate limit
+    // Optional tiny limiter (safe no-op if not present)
     try {
       const ip =
         headers().get("x-forwarded-for")?.split(",")[0]?.trim() ||
         headers().get("x-real-ip") ||
         "local";
-      const rl = rateLimit?.(`onboarding:${ip}`);
+      const rl = rateLimit?.(`onboarding:${ip}`, { limit: 5, windowMs: 60_000 });
       if (rl && !rl.ok) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
       }
