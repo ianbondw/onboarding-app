@@ -1,7 +1,13 @@
 // src/app/onboarding/[token]/done/page.tsx
 export const dynamic = "force-dynamic";
 
-export default function DonePage({ params }: { params: { token: string } }) {
+type DonePageProps = {
+  params: {
+    token: string;
+  };
+};
+
+export default function DonePage({ params }: DonePageProps) {
   return (
     <main style={{ maxWidth: 720, margin: "48px auto", padding: "0 16px" }}>
       <div
