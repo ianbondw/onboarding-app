@@ -70,3 +70,5 @@ export const defaultValues: OnboardingValues = {
     sourceOfFunds: "",
   },
 };
+// TODO: replace with real zod schemas later
+export const noop = true;
