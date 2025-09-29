@@ -4,7 +4,6 @@ import type { RiskTolerance } from "@prisma/client";
 
 import { onboardingSchema } from "@/lib/validations";
 import { prisma } from "@/lib/db";
-import { headers } from "next/headers";
 import { encryptSSN, ssnLast4 } from "@/lib/crypto";
 import { rateLimit } from "@/lib/rateLimit";
 
@@ -22,14 +21,17 @@ export async function POST(req: Request, { params }: any) {
       return NextResponse.json({ error: "Missing token" }, { status: 400 });
     }
 
-    // Optional tiny limiter (safe no-op if not present)
+    // Use request headers (avoid next/headers Promise typing)
+    const forwardedFor = req.headers.get("x-forwarded-for");
+    const ip =
+      forwardedFor?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "local";
+
+    // In-memory limiter (matches our stub: returns { allowed, remaining, resetMs })
     try {
-      const ip =
-        headers().get("x-forwarded-for")?.split(",")[0]?.trim() ||
-        headers().get("x-real-ip") ||
-        "local";
       const rl = rateLimit?.(`onboarding:${ip}`, { limit: 5, windowMs: 60_000 });
-      if (rl && !rl.ok) {
+      if (rl && !rl.allowed) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
       }
     } catch {
@@ -39,7 +41,7 @@ export async function POST(req: Request, { params }: any) {
     const body = await req.json();
     const data = onboardingSchema.parse(body);
 
-    // 🔐 Encrypt SSN, keep only ciphertext + last4
+    // 🔐 Encrypt SSN; only store ciphertext + last4
     const { ciphertextB64, ivB64, tagB64 } = encryptSSN(data.ssn);
     const last4 = ssnLast4(data.ssn);
 
@@ -50,7 +52,7 @@ export async function POST(req: Request, { params }: any) {
       create: { token, status: "SUBMITTED", submittedAt: new Date() }
     });
 
-    // Upsert client (store encrypted SSN, never plaintext)
+    // Upsert client
     const payload = {
       email: data.email,
       fullName: data.fullName,
