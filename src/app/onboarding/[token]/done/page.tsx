@@ -1,13 +1,8 @@
 // src/app/onboarding/[token]/done/page.tsx
 export const dynamic = "force-dynamic";
 
-type DonePageProps = {
-  params: {
-    token: string;
-  };
-};
-
-export default function DonePage({ params }: DonePageProps) {
+// Let Next.js infer the params type, don't fight its PageProps constraint
+export default function DonePage({ params }: any) {
   return (
     <main style={{ maxWidth: 720, margin: "48px auto", padding: "0 16px" }}>
       <div
