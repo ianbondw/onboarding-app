@@ -1,16 +1,6 @@
 import { z } from "zod";
 
-/** Strip $, commas, spaces; keep digits, optional minus and dot. */
-const toNumber = (val: unknown) => {
-  if (typeof val === "string") {
-    const cleaned = val.replace(/[^\d.-]/g, "");
-    return cleaned === "" ? NaN : Number(cleaned);
-  }
-  return val;
-};
-
-const currency = z.preprocess(toNumber, z.number().min(0, "Must be 0 or greater"));
-
+// Calculate cutoff date for age 18
 const eighteenYearsAgo = (() => {
   const d = new Date();
   d.setFullYear(d.getFullYear() - 18);
@@ -29,11 +19,10 @@ export const onboardingSchema = z.object({
     .refine((v) => !Number.isNaN(Date.parse(v)), "Enter a valid date")
     .refine((v) => new Date(v) <= eighteenYearsAgo, "You must be at least 18."),
 
-  netWorth: currency,
-
-  // Step 2 — Financial
-  income: currency,
-  investableAssets: currency,
+  // Step 2 — Financial (coerce strings → numbers)
+  netWorth: z.coerce.number().min(0, "Must be 0 or greater"),
+  income: z.coerce.number().min(0, "Must be 0 or greater"),
+  investableAssets: z.coerce.number().min(0, "Must be 0 or greater"),
   riskTolerance: z.enum(["Low", "Medium", "High"]),
 
   // Step 3 — Compliance
@@ -59,9 +48,9 @@ export const defaultValues: OnboardingValues = {
   email: "",
   ssn: "",
   dob: "",
-  netWorth: "" as any, // RHF will hold a string; zod will coerce to number
-  income: "" as any,
-  investableAssets: "" as any,
+  netWorth: 0,
+  income: 0,
+  investableAssets: 0,
   riskTolerance: "Medium",
   termsAccepted: false,
   kyc: {
@@ -70,5 +59,6 @@ export const defaultValues: OnboardingValues = {
     sourceOfFunds: "",
   },
 };
+
 // TODO: replace with real zod schemas later
 export const noop = true;
