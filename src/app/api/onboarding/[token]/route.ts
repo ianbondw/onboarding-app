@@ -10,7 +10,7 @@ import { headers } from "next/headers";
 import { encryptSSN, ssnLast4 } from "@/lib/crypto";
 import { rateLimit } from "@/lib/rateLimit"; // if you added it earlier; otherwise remove RL lines
 
-export const runtime = "nodejs";
+;
 
 export async function GET(_req: Request, { params }: { params: { token: string } }) {
   const token = params?.token ?? "(missing)";
