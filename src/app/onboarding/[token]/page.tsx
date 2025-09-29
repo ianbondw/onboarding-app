@@ -1,10 +1,11 @@
 // src/app/onboarding/[token]/page.tsx
-import Wizard from "./wizard";
-
-// Keep this page as a lightweight Server Component that renders the client Wizard.
-// Wizard itself reads the [token] via useParams().
 export const dynamic = "force-dynamic";
 
-export default function OnboardingPage() {
-  return <Wizard />;
+import Wizard from "./wizard"; // adjust if your import path is different
+
+export default function OnboardingPage({ params }: any) {
+  // Next.js provides the dynamic segment here
+  const token = params?.token as string;
+
+  return <Wizard token={token} />;
 }
