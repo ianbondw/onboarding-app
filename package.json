@@ -1,7 +1,30 @@
 {
   "name": "onboarding-app",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "description": "",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ianbondw/onboarding-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ianbondw/onboarding-app/issues"
+  },
+  "homepage": "https://github.com/ianbondw/onboarding-app#readme",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p $PORT",
+    "lint": "next lint",
+    "prisma:studio": "prisma studio",
+    "prisma:deploy": "prisma migrate deploy",
+    "postinstall": "prisma generate",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": ">=18 <=22"
+  },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
     "@prisma/client": "^6.16.2",
@@ -288,29 +311,6 @@
     "yocto-queue": "^0.1.0",
     "zod": "^4.1.8"
   },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "prisma:studio": "prisma studio",
-    "prisma:deploy": "prisma migrate deploy",
-    "postinstall": "prisma generate"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ianbondw/onboarding-app.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/ianbondw/onboarding-app/issues"
-  },
-  "homepage": "https://github.com/ianbondw/onboarding-app#readme",
-  "description": "",
   "devDependencies": {
     "@types/node": "^24.5.2",
     "@types/react": "^19.1.13",
