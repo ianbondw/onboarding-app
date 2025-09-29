@@ -6,13 +6,11 @@ import { onboardingSchema } from "@/lib/validations";
 import { prisma } from "@/lib/db";
 import { encryptSSN, ssnLast4 } from "@/lib/crypto";
 
-// GET /api/onboarding/[token]
 export async function GET(_req: Request, { params }: any) {
   const token = params?.token ?? "(missing)";
   return NextResponse.json({ ok: true, method: "GET", message: "API alive", token });
 }
 
-// POST /api/onboarding/[token]
 export async function POST(req: Request, { params }: any) {
   try {
     const token = params?.token;
@@ -23,18 +21,15 @@ export async function POST(req: Request, { params }: any) {
     const body = await req.json();
     const data = onboardingSchema.parse(body);
 
-    // 🔐 Encrypt SSN; only store ciphertext + last4
     const { ciphertextB64, ivB64, tagB64 } = encryptSSN(data.ssn);
     const last4 = ssnLast4(data.ssn);
 
-    // Upsert session
     const session = await prisma.onboardingSession.upsert({
       where: { token },
       update: { status: "SUBMITTED", submittedAt: new Date() },
       create: { token, status: "SUBMITTED", submittedAt: new Date() }
     });
 
-    // Upsert client
     const payload = {
       email: data.email,
       fullName: data.fullName,
@@ -47,7 +42,8 @@ export async function POST(req: Request, { params }: any) {
       income: data.income,
       investableAssets: data.investableAssets,
       riskTolerance: data.riskTolerance as RiskTolerance,
-      termsAccepted: data.termsAccepted,
+      // ✅ force boolean here instead of allowing null
+      termsAccepted: Boolean(data.termsAccepted),
       kycCitizenship: data.kyc?.citizenship ?? null,
       kycEmploymentStatus: data.kyc?.employmentStatus ?? null,
       kycSourceOfFunds: data.kyc?.sourceOfFunds ?? null,
