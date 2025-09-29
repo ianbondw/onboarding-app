@@ -21,16 +21,16 @@ export async function POST(req: Request, { params }: any) {
       return NextResponse.json({ error: "Missing token" }, { status: 400 });
     }
 
-    // Use request headers (avoid next/headers Promise typing)
+    // Use request headers
     const forwardedFor = req.headers.get("x-forwarded-for");
     const ip =
       forwardedFor?.split(",")[0]?.trim() ||
       req.headers.get("x-real-ip") ||
       "local";
 
-    // In-memory limiter (matches our stub: returns { allowed, remaining, resetMs })
+    // Call rateLimit with just a number (your helper expects limit only)
     try {
-      const rl = rateLimit?.(`onboarding:${ip}`, { limit: 5, windowMs: 60_000 });
+      const rl = rateLimit?.(`onboarding:${ip}`, 5);
       if (rl && !rl.allowed) {
         return NextResponse.json({ error: "Too many requests" }, { status: 429 });
       }
