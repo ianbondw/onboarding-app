@@ -14,10 +14,9 @@ export const onboardingSchema = z.object({
   ssn: z
     .string()
     .regex(/^\d{3}-\d{2}-\d{4}$/, "SSN must be in the form XXX-XX-XXXX"),
-  dob: z
-    .string()
-    .refine((v) => !Number.isNaN(Date.parse(v)), "Enter a valid date")
-    .refine((v) => new Date(v) <= eighteenYearsAgo, "You must be at least 18."),
+  dob: z.coerce
+    .date()
+    .refine((d) => d <= eighteenYearsAgo, "You must be at least 18."),
 
   // Step 2 — Financial (coerce strings → numbers)
   netWorth: z.coerce.number().min(0, "Must be 0 or greater"),
@@ -47,7 +46,7 @@ export const defaultValues: OnboardingValues = {
   fullName: "",
   email: "",
   ssn: "",
-  dob: "",
+  dob: new Date(), // RHF will hold a Date object after coercion
   netWorth: 0,
   income: 0,
   investableAssets: 0,
