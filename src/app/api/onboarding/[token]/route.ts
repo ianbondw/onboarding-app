@@ -1,83 +1,94 @@
 // src/app/api/onboarding/[token]/route.ts
 import { NextResponse } from "next/server";
-import { Prisma, type RiskTolerance, prisma } from "@/lib/db"; // <-- adjust import if your prisma client export is different
+import { PrismaClient, Prisma } from "@prisma/client";
+import type { RiskTolerance } from "@prisma/client";
 import { onboardingSchema } from "@/lib/validations";
 import { encryptSSN, ssnLast4 } from "@/lib/crypto";
 
-// Helpers: convert numeric -> Prisma.Decimal if needed; otherwise return number
+/** ---------- Prisma client (no external db helper needed) ---------- */
+declare global {
+  // eslint-disable-next-line no-var
+  var _prisma: PrismaClient | undefined;
+}
+const prisma = global._prisma ?? new PrismaClient();
+if (process.env.NODE_ENV !== "production") global._prisma = prisma;
+
+/** Optional helper: if your Prisma model uses Decimal for money fields,
+ *  this will create Prisma.Decimal; if not, it just returns the number. */
 function decimalize(v: number) {
   try {
-    // If Prisma.Decimal exists (Decimal fields), use it
-    // This will still typecheck even if your schema uses number fields
-    return new (Prisma as any).Decimal ? new (Prisma as any).Decimal(v) : v;
+    const D = (Prisma as any).Decimal;
+    return D ? new D(v) : v;
   } catch {
     return v;
   }
 }
 
-// Empty string -> undefined for optional text fields (better than null for Prisma)
-const undef = (s?: string | null) => (s ? s : undefined);
-
-// GET /api/onboarding/[token]
+/** GET /api/onboarding/[token] */
 export async function GET(_req: Request, { params }: any) {
   const token = params?.token ?? "(missing)";
   return NextResponse.json({ ok: true, method: "GET", message: "API alive", token });
 }
 
-// POST /api/onboarding/[token]
+/** POST /api/onboarding/[token] */
 export async function POST(req: Request, { params }: any) {
   try {
-    const token = params?.token;
+    const token = params?.token as string | undefined;
     if (!token) {
       return NextResponse.json({ error: "Missing token" }, { status: 400 });
     }
 
     const body = await req.json();
+    // Zod schema (we updated earlier) coerces numbers and Date for dob
     const data = onboardingSchema.parse(body);
 
     // 🔐 Encrypt SSN; only store ciphertext + last4
     const { ciphertextB64, ivB64, tagB64 } = encryptSSN(data.ssn);
     const last4 = ssnLast4(data.ssn);
 
-    // Upsert session
+    // Upsert the session
     const session = await prisma.onboardingSession.upsert({
       where: { token },
       update: { status: "SUBMITTED", submittedAt: new Date() },
-      create: { token, status: "SUBMITTED", submittedAt: new Date() }
+      create: { token, status: "SUBMITTED", submittedAt: new Date() },
     });
 
-    // Build payload in a way that satisfies either Decimal or number fields
+    // Build payload; works whether your Prisma model uses Decimal or Float
     const payload = {
-      email: data.email,
-      fullName: data.fullName,
-      ssnLast4: last4,
+      email:       data.email,
+      fullName:    data.fullName,
+      ssnLast4:    last4,
       ssnCiphertext: ciphertextB64,
-      ssnIv: ivB64,
-      ssnTag: tagB64,
-      dob: data.dob, // zod coerces to Date already
-      netWorth: decimalize(data.netWorth),
-      income: decimalize(data.income),
+      ssnIv:       ivB64,
+      ssnTag:      tagB64,
+      dob:         data.dob, // z.coerce.date() → Date
+      netWorth:    decimalize(data.netWorth),
+      income:      decimalize(data.income),
       investableAssets: decimalize(data.investableAssets),
-      riskTolerance: data.riskTolerance as RiskTolerance,
-      termsAccepted: Boolean(data.termsAccepted),
-      kycCitizenship: undef(data.kyc?.citizenship),
-      kycEmploymentStatus: undef(data.kyc?.employmentStatus),
-      kycSourceOfFunds: undef(data.kyc?.sourceOfFunds),
-      onboardingSession: { connect: { id: session.id } }
+      riskTolerance:    data.riskTolerance as RiskTolerance,
+      termsAccepted:    Boolean(data.termsAccepted),
+      // optional KYC fields — send undefined when empty
+      kycCitizenship:      data.kyc?.citizenship || undefined,
+      kycEmploymentStatus: data.kyc?.employmentStatus || undefined,
+      kycSourceOfFunds:    data.kyc?.sourceOfFunds || undefined,
+      onboardingSession: { connect: { id: session.id } },
     } as const;
 
     const client = await prisma.client.upsert({
-      where: { email: data.email },
-      update: payload as any, // allow Decimal/number dual-compat
-      create: payload as any
+      where:  { email: data.email },
+      update: payload as any, // tolerate Decimal vs number
+      create: payload as any,
     });
 
     return NextResponse.json(
       { ok: true, sessionId: session.id, clientId: client.id },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (err: any) {
-    const message = err?.issues?.[0]?.message ?? err?.message ?? "Unexpected error";
+    const message =
+      err?.issues?.[0]?.message ??
+      err?.message ??
+      "Unexpected error";
     const status = err?.name === "ZodError" ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
