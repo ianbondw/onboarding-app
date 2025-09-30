@@ -3,10 +3,10 @@ export default function Home() {
     <main style={{ maxWidth: 720, margin: "48px auto", padding: "0 16px", fontFamily: "system-ui" }}>
       <h1>Onboarding App is Running ✅</h1>
       <p style={{ color: "#475569" }}>
-        Start the wizard at <a href="/onboarding/test-123">/onboarding/test-123</a>
+        Share this link for a fresh session each time: <a href="/onboarding/new">/onboarding/new</a>
       </p>
       <p style={{ color: "#64748B", fontSize: 12 }}>
-        (This page doesn’t render the wizard; it links to the /onboarding/[token] route.)
+        (Each visit to <code>/onboarding/new</code> creates a unique token.)
       </p>
     </main>
   );
