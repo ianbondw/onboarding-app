@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, Controller, FormProvider } from "react-hook-form";
+import { useForm, Controller, FormProvider, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import CurrencyInput from "@/components/CurrencyInput";
 import {
@@ -31,8 +31,10 @@ export default function Wizard({ token }: Props) {
   const [step, setStep] = useState(0);
 
   const methods = useForm<OnboardingValues>({
-    resolver: zodResolver(onboardingSchema),
-    defaultValues,
+    // Force resolver to align with our exact form type (fixes unknown vs number/Date mismatch)
+    resolver: zodResolver(onboardingSchema) as unknown as Resolver<OnboardingValues, any>,
+    // Schema coerces numbers and dob (Date), so defaults are compatible
+    defaultValues: defaultValues as any,
     mode: "onBlur", // don't nag while typing
     reValidateMode: "onSubmit",
     shouldUnregister: false,
@@ -353,7 +355,7 @@ export default function Wizard({ token }: Props) {
                   <Row label="Full Name" value={current.fullName} />
                   <Row label="Email" value={current.email} />
                   <Row label="SSN" value={current.ssn} />
-                  <Row label="DOB" value={current.dob} />
+                  <Row label="DOB" value={String(current.dob)} />
                   <Row label="Net Worth" value={fmtUSD(current.netWorth)} />
                 </Section>
 
