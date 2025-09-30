@@ -24,12 +24,13 @@ export const onboardingSchema = z.object({
   investableAssets: z.coerce.number().min(0, "Must be 0 or greater"),
   riskTolerance: z.enum(["Low", "Medium", "High"]),
 
-  // Step 3 — Compliance
-  termsAccepted: z.literal(true, {
-    errorMap: () => ({ message: "You must acknowledge the disclosures" }),
-  }),
+  // Step 3 — Compliance (boolean refined to true)
+  termsAccepted: z
+    .coerce
+    .boolean()
+    .refine((v) => v === true, { message: "You must acknowledge the disclosures" }),
 
-  // Optional KYC/AML block (all optional; safe to expand later)
+  // Optional KYC/AML block (all optional)
   kyc: z
     .object({
       citizenship: z.string().optional(),
@@ -46,7 +47,8 @@ export const defaultValues: OnboardingValues = {
   fullName: "",
   email: "",
   ssn: "",
-  dob: new Date(), // RHF will hold a Date object after coercion
+  // keep as empty string for <input type="date">; Zod will coerce on submit
+  dob: "" as unknown as Date,
   netWorth: 0,
   income: 0,
   investableAssets: 0,
