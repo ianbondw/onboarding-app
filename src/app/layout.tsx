@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "Onboarding App",
-  description: "Client onboarding wizard",
+  title: "Advisor Onboarding",
+  description: "Streamlined client onboarding for advisors",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
