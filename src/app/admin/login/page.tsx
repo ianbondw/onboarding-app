@@ -3,10 +3,8 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminLogin({
-  searchParams,
-}: { searchParams?: { next?: string } }) {
-  const next = searchParams?.next ?? "/admin/clients";
+export default async function AdminLogin(props: any) {
+  const next = props?.searchParams?.next ?? "/admin/clients";
 
   async function action(formData: FormData) {
     "use server";

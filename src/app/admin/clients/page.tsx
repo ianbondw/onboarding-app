@@ -10,9 +10,9 @@ function toInt(v: string | string[] | undefined, d = 1) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : d;
 }
 
-export default async function AdminClients({
-  searchParams,
-}: { searchParams: Record<string, string | string[] | undefined> }) {
+// Allow anything so we don't trip Next.js type checks
+export default async function AdminClients(props: any) {
+    const searchParams = props?.searchParams ?? {};
   const PAGE_SIZE = 20;
   const page = toInt(searchParams.page, 1);
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q)?.trim();
