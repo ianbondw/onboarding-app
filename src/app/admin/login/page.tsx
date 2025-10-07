@@ -20,16 +20,8 @@ export default async function AdminLogin(props: any) {
     <main className="mx-auto max-w-sm p-6 space-y-4">
       <h1 className="text-xl font-semibold">Admin Login</h1>
       <form action={action} className="space-y-3">
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          className="border rounded px-3 py-2 w-full"
-          required
-        />
-        <button className="border rounded px-3 py-2 w-full" type="submit">
-          Sign in
-        </button>
+        <input type="password" name="password" placeholder="Password" className="border rounded px-3 py-2 w-full" required />
+        <button className="border rounded px-3 py-2 w-full" type="submit">Sign in</button>
       </form>
       <p className="text-xs text-gray-500">Protected area — for your eyes only.</p>
     </main>
