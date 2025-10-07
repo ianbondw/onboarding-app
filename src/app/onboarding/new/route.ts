@@ -1,8 +1,5 @@
-// src/app/onboarding/new/route.ts
 import { NextResponse } from "next/server";
-
 export const dynamic = "force-dynamic";
-
 export function GET(req: Request) {
   const token = crypto.randomUUID();
   const { origin } = new URL(req.url);
