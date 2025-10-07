@@ -20,37 +20,42 @@ export default async function AdminLogin(props: any) {
         sameSite: "lax",
         path: "/",
         secure: true,
-        maxAge: 60 * 60 * 24 * 30, // 30 days
+        maxAge: 60 * 60 * 24 * 30,
       });
-      redirect(next); // ends the action
+      redirect(next);
     }
 
-    // invalid password → redirect back with an error flag
     redirect(`/admin/login?err=1&next=${encodeURIComponent(next)}`);
   }
 
   return (
-    <main className="mx-auto max-w-sm p-6 space-y-4">
-      <h1 className="text-xl font-semibold">Admin Login</h1>
+    <main className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-full max-w-sm p-6 bg-white rounded-2xl shadow">
+        <h1 className="text-2xl font-semibold mb-2">Admin Login</h1>
+        <p className="text-sm text-gray-500 mb-4">Protected area — for your eyes only.</p>
 
-      {showError ? (
-        <p className="text-sm text-red-600">Invalid password. Try again.</p>
-      ) : null}
+        {showError ? (
+          <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            Invalid password. Try again.
+          </div>
+        ) : null}
 
-      <form action={action} className="space-y-3">
-        <input
-          type="password"
-          name="password"
-          placeholder="Password"
-          className="border rounded px-3 py-2 w-full"
-          required
-        />
-        <button className="border rounded px-3 py-2 w-full" type="submit">
-          Sign in
-        </button>
-      </form>
-
-      <p className="text-xs text-gray-500">Protected area — for your eyes only.</p>
+        <form action={action} className="space-y-3">
+          <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            className="border rounded-md px-3 py-2 w-full outline-none focus:ring-2 focus:ring-black/10"
+            required
+          />
+          <button
+            className="rounded-md px-3 py-2 w-full bg-black text-white hover:bg-black/90 transition"
+            type="submit"
+          >
+            Sign in
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
