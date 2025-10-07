@@ -30,12 +30,12 @@ model OnboardingSession {
 }
 
 model Client {
-  id       String @id @default(cuid())
-  email    String @unique
+  id       String  @id @default(cuid())
+  email    String  @unique
   fullName String
 
   // 🔐 Encrypted SSN at rest (AES-256-GCM), plus last4 for UX
-  ssnLast4      String
+  ssnLast4      String?   // <-- make this optional so migration can add it without breaking existing rows
   ssnCiphertext String
   ssnIv         String
   ssnTag        String
@@ -58,3 +58,4 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
