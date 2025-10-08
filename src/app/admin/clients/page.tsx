@@ -1,14 +1,11 @@
-export const runtime = "nodejs";
-
 import Link from "next/link";
 
-// Lazy import Prisma so we can show a nice error if envs are missing
+// Lazy import Prisma (keeps Node runtime in SSR)
 async function getPrisma() {
   const { PrismaClient } = await import("@prisma/client");
   return new PrismaClient();
 }
 
-// tiny helpers that don't assume exact schema field names
 function pick(obj: any, keys: string[], fallback = "") {
   for (const k of keys) if (obj && obj[k] != null) return String(obj[k]);
   return fallback;
@@ -27,22 +24,20 @@ export default async function AdminClients(props: any) {
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q)?.toString().trim() ?? "";
   const hasQ = q.length > 0;
 
-  // Debug mode shows env presence (no DB call)
+  // Debug env inspector (unchanged)
   const debug = (Array.isArray(searchParams.debug) ? searchParams.debug[0] : searchParams.debug) === "1";
   if (debug) {
     return (
-      <main className="mx-auto max-w-2xl p-6 space-y-4">
+      <main className="mx-auto max-w-3xl p-6 space-y-4">
         <h1 className="text-2xl font-semibold">Client Submissions (Debug)</h1>
-        <pre className="text-xs p-3 bg-gray-100 rounded">
-{`ENV present:
+        <pre className="text-xs p-3 bg-gray-100 rounded">{`ENV:
   DATABASE_URL:           ${Boolean(process.env.DATABASE_URL)}
   DATABASE_URL_UNPOOLED:  ${Boolean(process.env.DATABASE_URL_UNPOOLED)}
   PII_ENC_KEY:            ${Boolean(process.env.PII_ENC_KEY)}
   ADMIN_PASS:             ${Boolean(process.env.ADMIN_PASS)}
-`}
-        </pre>
-        <p className="text-sm">If any are <strong>false</strong> on Vercel, set them in Project → Settings → Environment Variables, then redeploy.</p>
-        <p><Link className="underline" href="/admin/clients">Back to list</Link></p>
+`}</pre>
+        <p className="text-sm">If any are <strong>false</strong> on Vercel, set them and redeploy.</p>
+        <p><Link className="link" href="/admin/clients">Back to list</Link></p>
       </main>
     );
   }
@@ -55,11 +50,10 @@ export default async function AdminClients(props: any) {
     const prisma = await getPrisma();
 
     if (hasQ) {
-      // pull more to filter in-memory
       const seed = await prisma.client.findMany({
         orderBy: { createdAt: "desc" },
         take: 1000,
-        include: { matches: true }, // NEW: pull recommendations
+        include: { matches: true }, // show recommendations if present
       }) as any[];
 
       const ql = q.toLowerCase();
@@ -80,7 +74,7 @@ export default async function AdminClients(props: any) {
         orderBy: { createdAt: "desc" },
         take: PAGE_SIZE,
         skip: (page - 1) * PAGE_SIZE,
-        include: { matches: true }, // NEW: pull recommendations
+        include: { matches: true },
       }) as any[];
     }
   } catch (e: any) {
@@ -88,22 +82,22 @@ export default async function AdminClients(props: any) {
     errorMsg = e?.message ?? String(e);
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-
   if (errorMsg) {
     return (
-      <main className="mx-auto max-w-2xl p-6 space-y-4">
+      <main className="mx-auto max-w-3xl p-6 space-y-4">
         <h1 className="text-2xl font-semibold">Client Submissions</h1>
         <div className="p-3 rounded-md border border-red-200 bg-red-50 text-sm text-red-800">
           <p className="font-medium">Server error while loading clients.</p>
           <pre className="mt-2 whitespace-pre-wrap">{errorMsg}</pre>
         </div>
         <p className="text-sm">
-          Try <Link className="underline" href="/admin/clients?debug=1">debug mode</Link> to verify env vars on Vercel.
+          Try <Link className="link" href="/admin/clients?debug=1">debug mode</Link> to verify env vars on Vercel.
         </p>
       </main>
     );
   }
+
+  const totalPages = Math.max(1, Math.ceil(total / 20));
 
   return (
     <main className="mx-auto max-w-6xl p-6 space-y-4">
@@ -113,25 +107,20 @@ export default async function AdminClients(props: any) {
       </div>
 
       <form className="flex gap-2">
-        <input
-          className="border rounded-md px-3 py-2 w-64 outline-none focus:ring-2 focus:ring-black/10"
-          name="q"
-          placeholder="Search name or email…"
-          defaultValue={q}
-        />
-        <button className="rounded-md px-3 py-2 border hover:bg-gray-50" type="submit">Search</button>
-        <Link className="rounded-md px-3 py-2 border hover:bg-gray-50" href="/admin/clients.csv">Export CSV</Link>
+        <input className="input w-64" name="q" placeholder="Search name or email…" defaultValue={q} />
+        <button className="btn-secondary" type="submit">Search</button>
+        <Link className="btn-secondary" href="/admin/clients.csv">Export CSV</Link>
       </form>
 
-      <div className="border rounded-2xl overflow-hidden shadow-sm">
+      <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr className="text-gray-700">
               <th className="text-left p-2">Created</th>
               <th className="text-left p-2">Name</th>
               <th className="text-left p-2">Email</th>
-              <th className="text-left p-2">Profile</th>{/* NEW: risk/horizon/goals snapshot */}
-              <th className="text-left p-2">Recs</th>{/* NEW: product matches */}
+              <th className="text-left p-2">Profile</th>
+              <th className="text-left p-2">Recs</th>
               <th className="text-left p-2">ID</th>
             </tr>
           </thead>
@@ -148,7 +137,7 @@ export default async function AdminClients(props: any) {
 
               const matches = Array.isArray(r?.matches) ? r.matches : [];
               const recSummary = matches.length
-                ? matches.map((m: any) => `${m.productName} (${m.productCode})`).slice(0,3).join(" · ") + (matches.length > 3 ? " +" + (matches.length - 3) : "")
+                ? matches.map((m: any) => `${m.productName} (${m.productCode})`).slice(0,3).join(" · ") + (matches.length > 3 ? ` +${matches.length - 3}` : "")
                 : "—";
 
               return (
@@ -157,23 +146,7 @@ export default async function AdminClients(props: any) {
                   <td className="p-2">{name}</td>
                   <td className="p-2">{email}</td>
                   <td className="p-2 text-xs text-gray-700">Risk: {risk} · Horizon: {horizon} · Goals: {goals}</td>
-                  <td className="p-2 text-xs text-gray-700">
-                    {recSummary}
-                    {matches.length > 0 && (
-                      <details className="mt-1">
-                        <summary className="cursor-pointer text-gray-600">View all</summary>
-                        <ul className="mt-1 list-disc pl-4">
-                          {matches.map((m: any) => (
-                            <li key={m.id}>
-                              <span className="font-medium">{m.productName}</span>
-                              <span className="text-gray-500"> — {m.productCode}{m.riskBand ? ` · ${m.riskBand}` : ""}</span>
-                              <div className="text-gray-600">{m.rationale}</div>
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
-                    )}
-                  </td>
+                  <td className="p-2 text-xs text-gray-700">{recSummary}</td>
                   <td className="p-2 font-mono">{r.id}</td>
                 </tr>
               );
@@ -186,17 +159,13 @@ export default async function AdminClients(props: any) {
       </div>
 
       <nav className="mt-2 flex items-center gap-2">
-        <span className="text-sm text-gray-600">Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}</span>
+        <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
         <div className="ml-auto flex gap-2">
           {page > 1 && (
-            <Link className="rounded-md px-3 py-1 border hover:bg-gray-50" href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>
-              Prev
-            </Link>
+            <Link className="btn-secondary" href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>Prev</Link>
           )}
-          {page < Math.max(1, Math.ceil(total / PAGE_SIZE)) && (
-            <Link className="rounded-md px-3 py-1 border hover:bg-gray-50" href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>
-              Next
-            </Link>
+          {page < totalPages && (
+            <Link className="btn-secondary" href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>Next</Link>
           )}
         </div>
       </nav>
