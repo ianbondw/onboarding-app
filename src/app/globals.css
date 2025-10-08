@@ -1,9 +1,49 @@
+/* src/app/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* optional global tweaks */
-body {
-  background-color: #f9fafb;
-  font-family: system-ui, sans-serif;
+/* Surface */
+:root {
+  --bg: 247 250 252; /* slate-50-ish */
+}
+body { background-color: rgb(var(--bg)); }
+
+/* Simple link + button primitives */
+.link {
+  @apply text-slate-700 hover:text-slate-900 hover:underline underline-offset-4;
+}
+.btn-primary {
+  @apply inline-flex items-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-black;
+}
+.btn-secondary {
+  @apply inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-slate-50;
+}
+.btn-plain {
+  @apply inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100;
+}
+
+/* Subtle background with animated orbs (tracker-balls) */
+.bg-surface {
+  background: radial-gradient(1200px 800px at 80% -20%, rgba(99,102,241,0.08), transparent 60%),
+              radial-gradient(900px 700px at -10% 20%, rgba(16,185,129,0.08), transparent 60%),
+              rgb(var(--bg));
+}
+.orbs { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.orb {
+  position: absolute;
+  width: 28rem; height: 28rem;
+  filter: blur(40px);
+  opacity: 0.18;
+  border-radius: 9999px;
+  mix-blend-mode: multiply;
+  animation: float 14s ease-in-out infinite;
+}
+.orb-a { background: #6366f1; top: -6rem; left: 10%; animation-delay: 0s; }
+.orb-b { background: #22c55e; bottom: -8rem; right: 5%; animation-delay: 2s; }
+.orb-c { background: #f59e0b; top: 35%; left: -10rem; animation-delay: 4s; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) translateX(0px) scale(1); }
+  50% { transform: translateY(-18px) translateX(8px) scale(1.02); }
 }

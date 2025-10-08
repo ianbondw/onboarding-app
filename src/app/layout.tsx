@@ -1,6 +1,7 @@
 // src/app/layout.tsx
 import "./globals.css";
 import React from "react";
+import Link from "next/link";
 
 export const metadata = {
   title: "Advisor Onboarding",
@@ -10,16 +11,27 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
-        <div className="mx-auto max-w-5xl px-4 py-8">
-          <header className="mb-8 flex items-center justify-between">
-            <h1 className="text-2xl font-semibold">Advisor Onboarding</h1>
-            <nav className="text-sm space-x-4">
-              <a href="/" className="hover:underline">Home</a>
-              <a href="/onboarding" className="hover:underline">Start Onboarding</a>
-              <a href="/admin/clients" className="hover:underline">Admin</a>
+      <body className="min-h-screen bg-surface text-slate-900 antialiased">
+        {/* Soft animated background orbs */}
+        <div className="orbs">
+          <span className="orb orb-a" />
+          <span className="orb orb-b" />
+          <span className="orb orb-c" />
+        </div>
+
+        <div className="mx-auto max-w-6xl px-4 py-8">
+          <header className="mb-10 flex items-center justify-between">
+            <Link href="/" className="text-2xl font-semibold tracking-tight">
+              Advisor Onboarding
+            </Link>
+            <nav className="flex items-center gap-6 text-sm">
+              <Link className="link" href="/">Home</Link>
+              {/* IMPORTANT: use /onboarding/new so it mints a token & redirects */}
+              <Link className="btn-secondary" href="/onboarding/new">Start Onboarding</Link>
+              <Link className="link" href="/admin/clients">Admin</Link>
             </nav>
           </header>
+
           {children}
         </div>
       </body>
