@@ -1,9 +1,36 @@
-import { NextResponse } from "next/server";
-import { prisma } from "../../../../lib/prisma"; // ✅ relative import
-import { encryptPII } from "../../../../lib/crypto";
-export const runtime = "nodejs";
+// src/app/api/onboarding/[token]/route.ts
+export const runtime = "nodejs"; // Prisma needs Node runtime on Vercel
 
-// very simple matching engine (rules based)
+import { NextResponse } from "next/server";
+
+// Lazy import Prisma (same style you use in /admin/clients/page.tsx)
+async function getPrisma() {
+  const { PrismaClient } = await import("@prisma/client");
+  return new PrismaClient();
+}
+
+// Tiny inline AES-256-GCM helper (optional; skips if no PII_ENC_KEY)
+const keyB64 = process.env.PII_ENC_KEY;
+async function encryptPII(value?: string) {
+  if (!value || !keyB64) return { cipher: null as Buffer | null, iv: null as Buffer | null };
+  try {
+    const raw = Buffer.from(keyB64, "base64");
+    if (raw.length !== 32) {
+      console.warn("PII_ENC_KEY must be 32 bytes (base64). Skipping encryption.");
+      return { cipher: null, iv: null };
+    }
+    const key = await crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt"]);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encoded = new TextEncoder().encode(value);
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
+    return { cipher: Buffer.from(ct), iv: Buffer.from(iv) };
+  } catch (e) {
+    console.warn("encryptPII failed; storing nulls:", e);
+    return { cipher: null, iv: null };
+  }
+}
+
+// Simple rules-based product matcher
 function matchProducts(input: {
   riskTolerance?: string;
   timeHorizon?: string;
@@ -15,7 +42,6 @@ function matchProducts(input: {
   hasCrypto?: boolean;
 }) {
   const recs: { code: string; name: string; rationale: string; risk?: string }[] = [];
-
   const goals = new Set(input.primaryGoals ?? []);
   const risk = input.riskTolerance ?? "moderate";
 
@@ -24,14 +50,14 @@ function matchProducts(input: {
       recs.push({
         code: "RET-TARGETDATE",
         name: "Target-Date Retirement Strategy",
-        rationale: "Retirement goal; glidepath auto-adjusts risk over time.",
+        rationale: "Retirement goal; a glidepath auto-adjusts risk over time.",
         risk,
       });
     } else {
       recs.push({
         code: "RET-IRA-ROLLOVER",
         name: "IRA Rollover (Traditional/Roth)",
-        rationale: "No IRA/401k linked; consider tax-advantaged IRA setup.",
+        rationale: "No IRA/401k linked; consider a tax-advantaged IRA setup.",
         risk,
       });
     }
@@ -51,7 +77,7 @@ function matchProducts(input: {
       recs.push({
         code: "GRW-CORE-INDEX",
         name: "Core Equity Index + Satellites",
-        rationale: "Higher risk tolerance; pair broad beta with tilts.",
+        rationale: "Higher risk tolerance; pair broad beta with selective tilts.",
         risk,
       });
     } else {
@@ -68,7 +94,7 @@ function matchProducts(input: {
     recs.push({
       code: "ALT-RISK-DISCLOSURE",
       name: "Alternative/Volatility Disclosure",
-      rationale: "Crypto exposure indicated — ensure risk disclosures and diversification review.",
+      rationale: "Crypto exposure indicated — confirm disclosures and diversification.",
       risk,
     });
   }
@@ -78,7 +104,7 @@ function matchProducts(input: {
 
 export async function POST(req: Request, ctx: { params: { token: string } }) {
   try {
-    const { token } = ctx.params; // if you later want to map token -> advisor, you have it here
+    const { token } = ctx.params;
     const body = await req.json();
 
     const {
@@ -93,6 +119,8 @@ export async function POST(req: Request, ctx: { params: { token: string } }) {
     if (!firstName || !lastName || !email) {
       return NextResponse.json({ error: "Missing required fields (firstName, lastName, email)" }, { status: 400 });
     }
+
+    const prisma = await getPrisma();
 
     const enc = await encryptPII(ssn);
     const consentAcceptedAt = consentAccepted ? new Date() : null;
