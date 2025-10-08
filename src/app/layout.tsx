@@ -1,4 +1,4 @@
-import "./globals.css";
+import "./globals.css"; // keep this at the top
 import React from "react";
 import Link from "next/link";
 
