@@ -1,15 +1,15 @@
 // src/app/api/onboarding/[token]/route.ts
 export const runtime = "nodejs"; // Prisma needs Node runtime on Vercel
 
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 
-// Lazy import Prisma (same style you use in /admin/clients/page.tsx)
+// Lazy import Prisma (same pattern you use elsewhere)
 async function getPrisma() {
   const { PrismaClient } = await import("@prisma/client");
   return new PrismaClient();
 }
 
-// Tiny inline AES-256-GCM helper (optional; skips if no PII_ENC_KEY)
+// Optional AES-256-GCM encryption for SSN (skips if PII_ENC_KEY is not set or invalid)
 const keyB64 = process.env.PII_ENC_KEY;
 async function encryptPII(value?: string) {
   if (!value || !keyB64) return { cipher: null as Buffer | null, iv: null as Buffer | null };
@@ -30,7 +30,7 @@ async function encryptPII(value?: string) {
   }
 }
 
-// Simple rules-based product matcher
+// Simple rules-based product matcher (expand as needed)
 function matchProducts(input: {
   riskTolerance?: string;
   timeHorizon?: string;
@@ -102,9 +102,9 @@ function matchProducts(input: {
   return recs;
 }
 
-export async function POST(req: Request, ctx: { params: { token: string } }) {
+export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
   try {
-    const { token } = ctx.params;
+    const { token } = params; // available if you later map token -> advisor
     const body = await req.json();
 
     const {
