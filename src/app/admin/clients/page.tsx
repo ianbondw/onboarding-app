@@ -53,9 +53,11 @@ export default async function AdminClients(props: any) {
     const prisma = await getPrisma();
 
     if (hasQ) {
+      // pull more to filter in-memory
       const seed = await prisma.client.findMany({
         orderBy: { createdAt: "desc" },
         take: 1000,
+        include: { matches: true }, // NEW: pull recommendations
       }) as any[];
 
       const ql = q.toLowerCase();
@@ -76,6 +78,7 @@ export default async function AdminClients(props: any) {
         orderBy: { createdAt: "desc" },
         take: PAGE_SIZE,
         skip: (page - 1) * PAGE_SIZE,
+        include: { matches: true }, // NEW: pull recommendations
       }) as any[];
     }
   } catch (e: any) {
@@ -125,6 +128,8 @@ export default async function AdminClients(props: any) {
               <th className="text-left p-2">Created</th>
               <th className="text-left p-2">Name</th>
               <th className="text-left p-2">Email</th>
+              <th className="text-left p-2">Profile</th>{/* NEW: risk/horizon/goals snapshot */}
+              <th className="text-left p-2">Recs</th>{/* NEW: product matches */}
               <th className="text-left p-2">ID</th>
             </tr>
           </thead>
@@ -134,17 +139,45 @@ export default async function AdminClients(props: any) {
               const nameFallback = [pick(r,["firstName","givenName","first_name"]), pick(r,["lastName","familyName","last_name"])].filter(Boolean).join(" ");
               const name = pick(r, ["name","fullName","displayName","clientName"], nameFallback) || "(unnamed)";
               const email = pick(r, ["email","primaryEmail","contactEmail"]);
+
+              const risk = r?.riskTolerance ?? "—";
+              const horizon = r?.timeHorizon ?? "—";
+              const goals = Array.isArray(r?.primaryGoals) && r.primaryGoals.length > 0 ? r.primaryGoals.join(", ") : "—";
+
+              const matches = Array.isArray(r?.matches) ? r.matches : [];
+              const recSummary = matches.length
+                ? matches.map((m: any) => `${m.productName} (${m.productCode})`).slice(0,3).join(" · ") + (matches.length > 3 ? " +" + (matches.length - 3) : "")
+                : "—";
+
               return (
                 <tr key={r.id ?? i} className="border-t hover:bg-gray-50 transition">
                   <td className="p-2">{created}</td>
                   <td className="p-2">{name}</td>
                   <td className="p-2">{email}</td>
+                  <td className="p-2 text-xs text-gray-700">Risk: {risk} · Horizon: {horizon} · Goals: {goals}</td>
+                  <td className="p-2 text-xs text-gray-700">
+                    {recSummary}
+                    {matches.length > 0 && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-gray-600">View all</summary>
+                        <ul className="mt-1 list-disc pl-4">
+                          {matches.map((m: any) => (
+                            <li key={m.id}>
+                              <span className="font-medium">{m.productName}</span>
+                              <span className="text-gray-500"> — {m.productCode}{m.riskBand ? ` · ${m.riskBand}` : ""}</span>
+                              <div className="text-gray-600">{m.rationale}</div>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </td>
                   <td className="p-2 font-mono">{r.id}</td>
                 </tr>
               );
             })}
             {rows.length === 0 && (
-              <tr><td className="p-4 text-gray-500" colSpan={4}>No results.</td></tr>
+              <tr><td className="p-4 text-gray-500" colSpan={6}>No results.</td></tr>
             )}
           </tbody>
         </table>

@@ -1,471 +1,300 @@
+// src/app/onboarding/[token]/wizard.tsx
 "use client";
 
-import * as React from "react";
-import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { useForm, Controller, FormProvider, type Resolver } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import CurrencyInput from "@/components/CurrencyInput";
-import {
-  onboardingSchema,
-  defaultValues,
-  type OnboardingValues,
-} from "@/lib/validations";
+import React, { useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 
-type Props = { token: string };
+type Step = "basic" | "employment" | "wealth" | "suitability" | "kyc" | "review";
 
-// Simple SSN masker for UX only (validation enforces proper format)
-function formatSSN(v: string) {
-  const digits = v.replace(/\D/g, "").slice(0, 9);
-  const a = digits.slice(0, 3);
-  const b = digits.slice(3, 5);
-  const c = digits.slice(5, 9);
-  let out = a;
-  if (b) out += "-" + b;
-  if (c) out += "-" + c;
-  return out;
-}
+const incomeBands = ["<50k", "50-100k", "100-250k", "250-500k", "500k+"];
+const wealthBands = ["<100k", "100-250k", "250-500k", "500k-1M", "1M+"];
+const riskOptions = ["conservative", "moderate", "growth", "aggressive"];
+const horizon = ["<3y", "3-5y", "5-10y", "10+y"];
+const goals = ["retirement", "income", "growth", "education", "legacy", "tax"];
 
-export default function Wizard({ token }: Props) {
-  const router = useRouter();
-  const [step, setStep] = useState(0);
+export default function Wizard() {
+  const { token } = useParams<{ token: string }>();
+  const [step, setStep] = useState<Step>("basic");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
 
-  const methods = useForm<OnboardingValues>({
-    // Force resolver to align with our exact form type (fixes unknown vs number/Date mismatch)
-    resolver: zodResolver(onboardingSchema) as unknown as Resolver<OnboardingValues, any>,
-    // Schema coerces numbers and dob (Date), so defaults are compatible
-    defaultValues: defaultValues as any,
-    mode: "onBlur", // don't nag while typing
-    reValidateMode: "onSubmit",
-    shouldUnregister: false,
+  const [form, setForm] = useState<any>({
+    // Basic
+    firstName: "", lastName: "", email: "", phone: "",
+    dateOfBirth: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "US",
+    citizenship: "US",
+    // Employment
+    employmentStatus: "", employerName: "", annualIncomeBand: "", sourceOfFunds: "",
+    // Wealth
+    liquidAssetsBand: "", illiquidAssetsBand: "", liabilitiesBand: "", netWorthBand: "",
+    hasIRA: false, has401k: false, hasTaxable: true, hasCrypto: false, hasRealEstate: false,
+    // Suitability
+    riskTolerance: "", timeHorizon: "", primaryGoals: [] as string[], liquidityNeeds: "", constraints: [] as string[], investmentExperience: "",
+    // KYC
+    ssn: "", idDocType: "", idDocUrl: "", proofOfAddressUrl: "", consentAccepted: false,
   });
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    trigger,
-    formState: { errors, isSubmitting },
-    setValue,
-    watch,
-  } = methods;
-
-  const stepFields: (keyof OnboardingValues)[][] = useMemo(
-    () => [
-      ["fullName", "email", "ssn", "dob", "netWorth"],
-      ["income", "investableAssets", "riskTolerance"],
-      ["termsAccepted"],
-      [], // review has no new inputs
-    ],
-    []
-  );
-
-  async function next() {
-    const valid = await trigger(stepFields[step] as any);
-    if (valid) setStep((s) => Math.min(s + 1, 3));
+  function next() {
+    setStep((s) =>
+      s === "basic" ? "employment" :
+      s === "employment" ? "wealth" :
+      s === "wealth" ? "suitability" :
+      s === "suitability" ? "kyc" :
+      s === "kyc" ? "review" : "review"
+    );
+  }
+  function prev() {
+    setStep((s) =>
+      s === "review" ? "kyc" :
+      s === "kyc" ? "suitability" :
+      s === "suitability" ? "wealth" :
+      s === "wealth" ? "employment" :
+      "basic"
+    );
   }
 
-  function back() {
-    setStep((s) => Math.max(s - 1, 0));
-  }
-
-  async function onSubmit(values: OnboardingValues) {
-    // Submit all validated data to API
-    const res = await fetch(`/api/onboarding/${token}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
-    });
-
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      alert(j?.error ?? "Submit failed");
-      return;
+  const canContinue = useMemo(() => {
+    if (step === "basic") {
+      return form.firstName && form.lastName && form.email;
     }
-    router.push(`/onboarding/${token}/done`);
-  }
+    if (step === "suitability") {
+      return form.riskTolerance && form.timeHorizon && (form.primaryGoals?.length > 0);
+    }
+    if (step === "kyc") {
+      return !!form.consentAccepted; // SSN asked late; consent required here
+    }
+    return true;
+  }, [step, form]);
 
-  const current = watch();
+  async function submit() {
+    setLoading(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/onboarding/${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to submit");
+
+      setMsg("Onboarding submitted. Your advisor will review recommendations shortly.");
+      // you could navigate to /onboarding/[token]/done here if you have it
+      // router.push(`/onboarding/${token}/done`);
+    } catch (e: any) {
+      setMsg(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>Onboarding App</h1>
+    <div className="rounded-xl border bg-white p-6 shadow-sm">
+      <h2 className="text-xl font-medium">Client Onboarding</h2>
+      <p className="text-sm text-slate-600">
+        We ask only what’s needed. Your data is encrypted and used to tailor recommendations.
+      </p>
 
-      {/* Progress pills */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-        {["1. Client Info", "2. Financial Info", "3. Compliance", "4. Review & Submit"].map(
-          (label, i) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => setStep(i)}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 999,
-                border: "1px solid #E2E8F0",
-                background: i === step ? "#111827" : "#F1F5F9",
-                color: i === step ? "#fff" : "#111827",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              {label}
-            </button>
-          )
+      <div className="mt-6 flex items-center gap-2 text-xs">
+        {["basic","employment","wealth","suitability","kyc","review"].map((s) => (
+          <span key={s} className={`rounded-full px-2 py-1 ${step===s ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}>{s}</span>
+        ))}
+      </div>
+
+      <div className="mt-6 space-y-4">
+        {step === "basic" && (
+          <>
+            <Row>
+              <Input label="First name" value={form.firstName} onChange={(v)=>setForm({...form, firstName:v})} />
+              <Input label="Last name" value={form.lastName} onChange={(v)=>setForm({...form, lastName:v})} />
+            </Row>
+            <Row>
+              <Input label="Email" type="email" value={form.email} onChange={(v)=>setForm({...form, email:v})} />
+              <Input label="Phone" value={form.phone} onChange={(v)=>setForm({...form, phone:v})} />
+            </Row>
+            <Row>
+              <Input label="Date of birth" type="date" value={form.dateOfBirth} onChange={(v)=>setForm({...form, dateOfBirth:v})} />
+              <Input label="Citizenship" value={form.citizenship} onChange={(v)=>setForm({...form, citizenship:v})} />
+            </Row>
+            <Input label="Address line 1" value={form.addressLine1} onChange={(v)=>setForm({...form, addressLine1:v})} />
+            <Input label="Address line 2" value={form.addressLine2} onChange={(v)=>setForm({...form, addressLine2:v})} />
+            <Row>
+              <Input label="City" value={form.city} onChange={(v)=>setForm({...form, city:v})} />
+              <Input label="State" value={form.state} onChange={(v)=>setForm({...form, state:v})} />
+              <Input label="Postal code" value={form.postalCode} onChange={(v)=>setForm({...form, postalCode:v})} />
+            </Row>
+          </>
+        )}
+
+        {step === "employment" && (
+          <>
+            <Select label="Employment status" value={form.employmentStatus} onChange={(v)=>setForm({...form, employmentStatus:v})}
+              options={["employed","self_employed","student","retired","unemployed"]}/>
+            <Input label="Employer name" value={form.employerName} onChange={(v)=>setForm({...form, employerName:v})} />
+            <Select label="Annual income (range)" value={form.annualIncomeBand} onChange={(v)=>setForm({...form, annualIncomeBand:v})}
+              options={incomeBands}/>
+            <Select label="Source of funds" value={form.sourceOfFunds} onChange={(v)=>setForm({...form, sourceOfFunds:v})}
+              options={["salary","business","inheritance","asset_sale","other"]}/>
+          </>
+        )}
+
+        {step === "wealth" && (
+          <>
+            <Select label="Liquid assets (range)" value={form.liquidAssetsBand} onChange={(v)=>setForm({...form, liquidAssetsBand:v})}
+              options={wealthBands}/>
+            <Select label="Illiquid assets (range)" value={form.illiquidAssetsBand} onChange={(v)=>setForm({...form, illiquidAssetsBand:v})}
+              options={wealthBands}/>
+            <Select label="Liabilities (range)" value={form.liabilitiesBand} onChange={(v)=>setForm({...form, liabilitiesBand:v})}
+              options={wealthBands}/>
+            <Select label="Estimated net worth (range)" value={form.netWorthBand} onChange={(v)=>setForm({...form, netWorthBand:v})}
+              options={wealthBands}/>
+            <Row>
+              <Checkbox label="Has IRA" checked={form.hasIRA} onChange={(v)=>setForm({...form, hasIRA:v})}/>
+              <Checkbox label="Has 401k" checked={form.has401k} onChange={(v)=>setForm({...form, has401k:v})}/>
+              <Checkbox label="Taxable account" checked={form.hasTaxable} onChange={(v)=>setForm({...form, hasTaxable:v})}/>
+              <Checkbox label="Crypto" checked={form.hasCrypto} onChange={(v)=>setForm({...form, hasCrypto:v})}/>
+              <Checkbox label="Real estate" checked={form.hasRealEstate} onChange={(v)=>setForm({...form, hasRealEstate:v})}/>
+            </Row>
+          </>
+        )}
+
+        {step === "suitability" && (
+          <>
+            <Select label="Risk tolerance" value={form.riskTolerance} onChange={(v)=>setForm({...form, riskTolerance:v})} options={riskOptions}/>
+            <Select label="Time horizon" value={form.timeHorizon} onChange={(v)=>setForm({...form, timeHorizon:v})} options={horizon}/>
+            <Multi label="Primary goals" value={form.primaryGoals} onChange={(v)=>setForm({...form, primaryGoals:v})} options={goals}/>
+            <Select label="Liquidity needs" value={form.liquidityNeeds} onChange={(v)=>setForm({...form, liquidityNeeds:v})}
+              options={["none","some","high"]}/>
+            <Multi label="Constraints" value={form.constraints} onChange={(v)=>setForm({...form, constraints:v})}
+              options={["no_leverage","esg_only"]}/>
+            <Select label="Investment experience" value={form.investmentExperience} onChange={(v)=>setForm({...form, investmentExperience:v})}
+              options={["none","basic","intermediate","advanced"]}/>
+          </>
+        )}
+
+        {step === "kyc" && (
+          <>
+            <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-700">
+              <strong>Why we ask for SSN/ID:</strong> to verify your identity and fulfill tax and regulatory obligations.
+            </div>
+            <Input label="SSN (9 digits)" value={form.ssn} maxLength={11}
+              placeholder="***-**-****" onChange={(v)=>setForm({...form, ssn:v})}/>
+            <Select label="ID document type" value={form.idDocType} onChange={(v)=>setForm({...form, idDocType:v})}
+              options={["driver_license","passport","other"]}/>
+            <Input label="ID document URL (optional for demo)" value={form.idDocUrl} onChange={(v)=>setForm({...form, idDocUrl:v})}/>
+            <Input label="Proof of address URL (optional for demo)" value={form.proofOfAddressUrl} onChange={(v)=>setForm({...form, proofOfAddressUrl:v})}/>
+            <Row>
+              <Checkbox label="I consent to data processing & e-signature" checked={form.consentAccepted}
+                onChange={(v)=>setForm({...form, consentAccepted:v})}/>
+            </Row>
+          </>
+        )}
+
+        {step === "review" && (
+          <div className="rounded-lg border p-4 text-sm">
+            <p className="mb-2 text-slate-700">Review your info. When you submit, we’ll generate advisor-ready recommendations.</p>
+            <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-slate-50 p-3">{JSON.stringify(form, null, 2)}</pre>
+          </div>
         )}
       </div>
 
-      <FormProvider {...methods}>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          {/* Card */}
-          <div
-            style={{
-              border: "1px solid #E2E8F0",
-              borderRadius: 12,
-              padding: 20,
-              background: "#fff",
-              marginBottom: 16,
-            }}
+      <div className="mt-6 flex items-center gap-3">
+        {step !== "basic" && (
+          <button onClick={prev} className="rounded-md border px-4 py-2 text-sm">Back</button>
+        )}
+        {step !== "review" && (
+          <button
+            onClick={next}
+            disabled={!canContinue}
+            className={`rounded-md px-4 py-2 text-sm ${canContinue ? "bg-slate-900 text-white" : "bg-slate-200 text-slate-500 cursor-not-allowed"}`}
           >
-            {step === 0 && (
-              <div>
-                <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>
-                  Step 1 — Client Info
-                </h2>
+            Continue
+          </button>
+        )}
+        {step === "review" && (
+          <button
+            onClick={submit}
+            disabled={loading}
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white"
+          >
+            {loading ? "Submitting..." : "Submit"}
+          </button>
+        )}
+      </div>
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 16,
-                  }}
-                >
-                  {/* Full Name */}
-                  <div>
-                    <label style={{ fontWeight: 600 }}>Full Name</label>
-                    <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
-                      Legal name as it appears on government ID.
-                    </div>
-                    <input
-                      {...register("fullName")}
-                      placeholder="Jane Q. Doe"
-                      autoComplete="name"
-                      className="input"
-                      style={inputStyle(errors.fullName)}
-                    />
-                    <FieldError msg={errors.fullName?.message} />
-                  </div>
+      {msg && <p className="mt-4 text-sm text-slate-700">{msg}</p>}
+    </div>
+  );
+}
 
-                  {/* Email */}
-                  <div>
-                    <label style={{ fontWeight: 600 }}>Email</label>
-                    <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
-                      We’ll send document e-sign and status updates here.
-                    </div>
-                    <input
-                      {...register("email")}
-                      type="email"
-                      placeholder="jane@example.com"
-                      autoComplete="email"
-                      style={inputStyle(errors.email)}
-                    />
-                    <FieldError msg={errors.email?.message} />
-                  </div>
-
-                  {/* SSN */}
-                  <div>
-                    <label style={{ fontWeight: 600 }}>SSN (XXX-XX-XXXX)</label>
-                    <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
-                      Used for CIP/KYC; encrypted and stored securely.
-                    </div>
-                    <input
-                      {...register("ssn")}
-                      inputMode="numeric"
-                      placeholder="123-45-6789"
-                      onChange={(e) => setValue("ssn", formatSSN(e.target.value))}
-                      style={inputStyle(errors.ssn)}
-                    />
-                    <FieldError msg={errors.ssn?.message} />
-                  </div>
-
-                  {/* DOB */}
-                  <div>
-                    <label style={{ fontWeight: 600 }}>Date of Birth</label>
-                    <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
-                      You must be at least 18 years old.
-                    </div>
-                    <input
-                      {...register("dob")}
-                      type="date"
-                      placeholder="mm/dd/yyyy"
-                      style={inputStyle(errors.dob)}
-                    />
-                    <FieldError msg={errors.dob?.message} />
-                  </div>
-
-                  {/* Net Worth — CurrencyInput */}
-                  <div style={{ gridColumn: "1 / span 2" }}>
-                    <label style={{ fontWeight: 600 }}>Net Worth</label>
-                    <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
-                      Approximate total assets minus liabilities.
-                    </div>
-                    <Controller
-                      control={control}
-                      name="netWorth"
-                      render={({ field, fieldState }) => (
-                        <CurrencyInput
-                          id="netWorth"
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder="e.g., 750,000"
-                          aria-invalid={!!fieldState.error}
-                        />
-                      )}
-                    />
-                    <FieldError msg={errors.netWorth?.message} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {step === 1 && (
-              <div>
-                <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>
-                  Step 2 — Financial Info
-                </h2>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 16,
-                  }}
-                >
-                  {/* Income — CurrencyInput */}
-                  <div>
-                    <label style={{ fontWeight: 600 }}>Income</label>
-                    <Controller
-                      control={control}
-                      name="income"
-                      render={({ field, fieldState }) => (
-                        <CurrencyInput
-                          id="income"
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder="e.g., 200,000"
-                          aria-invalid={!!fieldState.error}
-                        />
-                      )}
-                    />
-                    <FieldError msg={errors.income?.message} />
-                  </div>
-
-                  {/* Investable Assets — CurrencyInput */}
-                  <div>
-                    <label style={{ fontWeight: 600 }}>Investable Assets</label>
-                    <Controller
-                      control={control}
-                      name="investableAssets"
-                      render={({ field, fieldState }) => (
-                        <CurrencyInput
-                          id="investableAssets"
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder="e.g., 100,000"
-                          aria-invalid={!!fieldState.error}
-                        />
-                      )}
-                    />
-                    <FieldError msg={errors.investableAssets?.message} />
-                  </div>
-
-                  {/* Risk Tolerance */}
-                  <div style={{ gridColumn: "1 / span 2" }}>
-                    <label style={{ fontWeight: 600 }}>Risk Tolerance</label>
-                    <select
-                      {...register("riskTolerance")}
-                      style={{
-                        ...inputStyle(errors.riskTolerance),
-                        height: 44,
-                      }}
-                    >
-                      <option value="Low">Low</option>
-                      <option value="Medium">Medium</option>
-                      <option value="High">High</option>
-                    </select>
-                    <FieldError msg={errors.riskTolerance?.message} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {step === 2 && (
-              <div>
-                <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>
-                  Step 3 — Compliance & Agreements
-                </h2>
-
-                <div style={{ display: "grid", gap: 16 }}>
-                  <label style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <input type="checkbox" {...register("termsAccepted")} />
-                    <span>
-                      I confirm the information provided is true and acknowledge the disclosures.
-                    </span>
-                  </label>
-                  <FieldError msg={errors.termsAccepted?.message} />
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-                    <div>
-                      <label style={{ fontWeight: 600 }}>Citizenship (optional)</label>
-                      <input
-                        {...register("kyc.citizenship")}
-                        placeholder="US / Non-US"
-                        style={inputStyle(undefined)}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontWeight: 600 }}>Employment Status (optional)</label>
-                      <input
-                        {...register("kyc.employmentStatus")}
-                        placeholder="Employed / Self-employed / Retired"
-                        style={inputStyle(undefined)}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontWeight: 600 }}>Source of Funds (optional)</label>
-                      <input
-                        {...register("kyc.sourceOfFunds")}
-                        placeholder="Employment / Inheritance / Other"
-                        style={inputStyle(undefined)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div>
-                <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>
-                  Step 4 — Review & Submit
-                </h2>
-
-                {/* Review blocks */}
-                <Section title="Client">
-                  <Row label="Full Name" value={current.fullName} />
-                  <Row label="Email" value={current.email} />
-                  <Row label="SSN" value={current.ssn} />
-                  <Row label="DOB" value={String(current.dob)} />
-                  <Row label="Net Worth" value={fmtUSD(current.netWorth)} />
-                </Section>
-
-                <Section title="Financial">
-                  <Row label="Income" value={fmtUSD(current.income)} />
-                  <Row label="Investable Assets" value={fmtUSD(current.investableAssets)} />
-                  <Row label="Risk Tolerance" value={current.riskTolerance} />
-                </Section>
-
-                <Section title="Compliance">
-                  <Row label="Confirmed & Acknowledged" value={current.termsAccepted ? "Yes" : "No"} />
-                  <Row label="Citizenship" value={current.kyc?.citizenship || "—"} />
-                  <Row label="Employment Status" value={current.kyc?.employmentStatus || "—"} />
-                  <Row label="Source of Funds" value={current.kyc?.sourceOfFunds || "—"} />
-                </Section>
-
-                <p style={{ color: "#64748B", fontSize: 12 }}>
-                  Use “Back” to edit any section before submitting.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Footer buttons */}
-          <div style={{ display: "flex", gap: 12, justifyContent: "space-between" }}>
+function Row({ children }: { children: React.ReactNode }) {
+  return <div className="grid gap-4 md:grid-cols-2">{children}</div>;
+}
+function Input({
+  label, value, onChange, type = "text", placeholder, maxLength,
+}: { label: string; value: string; onChange: (v: string)=>void; type?: string; placeholder?: string; maxLength?: number }) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 inline-block text-slate-700">{label}</span>
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        onChange={(e)=>onChange(e.target.value)}
+        className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+      />
+    </label>
+  );
+}
+function Select({
+  label, value, onChange, options,
+}: { label: string; value: string; onChange: (v: string)=>void; options: string[] }) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 inline-block text-slate-700">{label}</span>
+      <select
+        value={value}
+        onChange={(e)=>onChange(e.target.value)}
+        className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-slate-300"
+      >
+        <option value="">Select...</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
+  );
+}
+function Checkbox({
+  label, checked, onChange,
+}: { label: string; checked: boolean; onChange: (v: boolean)=>void }) {
+  return (
+    <label className="inline-flex items-center gap-2 text-sm">
+      <input type="checkbox" checked={checked} onChange={(e)=>onChange(e.target.checked)} />
+      <span>{label}</span>
+    </label>
+  );
+}
+function Multi({
+  label, value, onChange, options,
+}: { label: string; value: string[]; onChange: (v: string[])=>void; options: string[] }) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 inline-block text-slate-700">{label}</span>
+      <div className="flex flex-wrap gap-2">
+        {options.map(o => {
+          const active = value.includes(o);
+          return (
             <button
+              key={o}
               type="button"
-              onClick={back}
-              disabled={step === 0 || isSubmitting}
-              style={secondaryButtonStyle}
+              onClick={()=>onChange(active ? value.filter(v=>v!==o) : [...value, o])}
+              className={`rounded-full border px-3 py-1 text-xs ${active ? "bg-slate-900 text-white" : "bg-white"}`}
             >
-              Back
+              {o}
             </button>
-
-            {step < 3 ? (
-              <button type="button" onClick={next} style={primaryButtonStyle}>
-                Next
-              </button>
-            ) : (
-              <button type="submit" disabled={isSubmitting} style={primaryButtonStyle}>
-                {isSubmitting ? "Submitting…" : "Submit"}
-              </button>
-            )}
-          </div>
-        </form>
-      </FormProvider>
-    </div>
+          );
+        })}
+      </div>
+    </label>
   );
-}
-
-/* -------------------------- helpers / tiny UI bits ------------------------- */
-
-function inputStyle(error?: unknown): React.CSSProperties {
-  return {
-    width: "100%",
-    height: 44,
-    padding: "10px 12px",
-    borderRadius: 8,
-    border: `1px solid ${error ? "#ef4444" : "#E2E8F0"}`,
-    background: "#fff",
-    outline: "none",
-  };
-}
-
-function FieldError({ msg }: { msg?: string }) {
-  if (!msg) return null;
-  return <div style={{ color: "#ef4444", fontSize: 12, marginTop: 6 }}>{msg}</div>;
-}
-
-function Section({ title, children }: React.PropsWithChildren<{ title: string }>) {
-  return (
-    <div style={{ paddingTop: 8, marginBottom: 16 }}>
-      <h3 style={{ fontWeight: 700, marginBottom: 8 }}>{title}</h3>
-      <div style={{ borderTop: "1px solid #E2E8F0" }} />
-      <div style={{ display: "grid", gap: 10, paddingTop: 10 }}>{children}</div>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 8 }}>
-      <div style={{ color: "#64748B" }}>{label}</div>
-      <div style={{ fontWeight: 600 }}>{String(value ?? "—")}</div>
-    </div>
-  );
-}
-
-const primaryButtonStyle: React.CSSProperties = {
-  padding: "10px 16px",
-  borderRadius: 10,
-  background: "#111827",
-  color: "#fff",
-  fontWeight: 700,
-  border: "none",
-  cursor: "pointer",
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  padding: "10px 16px",
-  borderRadius: 10,
-  background: "#F1F5F9",
-  color: "#0f172a",
-  fontWeight: 600,
-  border: "1px solid #E2E8F0",
-  cursor: "pointer",
-};
-
-function fmtUSD(v: any) {
-  const n = typeof v === "string" ? Number(v.replace(/[^\d.-]/g, "")) : Number(v);
-  if (Number.isNaN(n)) return "—";
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
 }

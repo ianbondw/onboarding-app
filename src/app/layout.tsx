@@ -1,18 +1,28 @@
+// src/app/layout.tsx
+import "./globals.css";
+import React from "react";
+
 export const metadata = {
   title: "Advisor Onboarding",
-  description: "Streamlined client onboarding for advisors",
+  description: "Modern onboarding for advisory & wealth firms",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const domain = process.env.PLAUSIBLE_DOMAIN;
   return (
     <html lang="en">
-      <head>
-        {domain ? (
-          <script defer data-domain={domain} src="https://plausible.io/js/script.js" />
-        ) : null}
-      </head>
-      <body className="min-h-screen bg-white text-gray-900">{children}</body>
+      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
+        <div className="mx-auto max-w-5xl px-4 py-8">
+          <header className="mb-8 flex items-center justify-between">
+            <h1 className="text-2xl font-semibold">Advisor Onboarding</h1>
+            <nav className="text-sm space-x-4">
+              <a href="/" className="hover:underline">Home</a>
+              <a href="/onboarding" className="hover:underline">Start Onboarding</a>
+              <a href="/admin/clients" className="hover:underline">Admin</a>
+            </nav>
+          </header>
+          {children}
+        </div>
+      </body>
     </html>
   );
 }

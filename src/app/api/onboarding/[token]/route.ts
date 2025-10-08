@@ -1,95 +1,152 @@
 // src/app/api/onboarding/[token]/route.ts
 import { NextResponse } from "next/server";
-import { PrismaClient, Prisma } from "@prisma/client";
-import type { RiskTolerance } from "@prisma/client";
-import { onboardingSchema } from "@/lib/validations";
-import { encryptSSN, ssnLast4 } from "@/lib/crypto";
+import { prisma } from "@/lib/prisma";
+import { encryptPII } from "@/lib/crypto";
 
-/** ---------- Prisma client (no external db helper needed) ---------- */
-declare global {
-  // eslint-disable-next-line no-var
-  var _prisma: PrismaClient | undefined;
-}
-const prisma = global._prisma ?? new PrismaClient();
-if (process.env.NODE_ENV !== "production") global._prisma = prisma;
+// very simple matching engine (rules based)
+function matchProducts(input: {
+  riskTolerance?: string;
+  timeHorizon?: string;
+  primaryGoals?: string[];
+  annualIncomeBand?: string;
+  hasIRA?: boolean;
+  has401k?: boolean;
+  hasTaxable?: boolean;
+  hasCrypto?: boolean;
+}) {
+  const recs: { code: string; name: string; rationale: string; risk?: string }[] = [];
 
-/** Optional helper: if your Prisma model uses Decimal for money fields,
- *  this will create Prisma.Decimal; if not, it just returns the number. */
-function decimalize(v: number) {
-  try {
-    const D = (Prisma as any).Decimal;
-    return D ? new D(v) : v;
-  } catch {
-    return v;
+  const goals = new Set(input.primaryGoals ?? []);
+  const risk = input.riskTolerance ?? "moderate";
+
+  if (goals.has("retirement")) {
+    if (input.hasIRA || input.has401k) {
+      recs.push({
+        code: "RET-TARGETDATE",
+        name: "Target-Date Retirement Strategy",
+        rationale: "Retirement goal; glidepath auto-adjusts risk over time.",
+        risk,
+      });
+    } else {
+      recs.push({
+        code: "RET-IRA-ROLLOVER",
+        name: "IRA Rollover (Traditional/Roth)",
+        rationale: "No IRA/401k linked; consider tax-advantaged IRA setup.",
+        risk,
+      });
+    }
   }
+
+  if (goals.has("income")) {
+    recs.push({
+      code: "INC-MUNI",
+      name: "Tax-Sensitive Municipal Income",
+      rationale: "Income objective with potential tax efficiency.",
+      risk,
+    });
+  }
+
+  if (goals.has("growth")) {
+    if (risk === "aggressive" || risk === "growth") {
+      recs.push({
+        code: "GRW-CORE-INDEX",
+        name: "Core Equity Index + Satellites",
+        rationale: "Higher risk tolerance; pair broad beta with tilts.",
+        risk,
+      });
+    } else {
+      recs.push({
+        code: "GRW-BALANCED",
+        name: "Balanced Allocation",
+        rationale: "Growth goal with moderate risk; diversified multi-asset exposure.",
+        risk,
+      });
+    }
+  }
+
+  if (input.hasCrypto) {
+    recs.push({
+      code: "ALT-RISK-DISCLOSURE",
+      name: "Alternative/Volatility Disclosure",
+      rationale: "Crypto exposure indicated — ensure risk disclosures and diversification review.",
+      risk,
+    });
+  }
+
+  return recs;
 }
 
-/** GET /api/onboarding/[token] */
-export async function GET(_req: Request, { params }: any) {
-  const token = params?.token ?? "(missing)";
-  return NextResponse.json({ ok: true, method: "GET", message: "API alive", token });
-}
-
-/** POST /api/onboarding/[token] */
-export async function POST(req: Request, { params }: any) {
+export async function POST(req: Request, ctx: { params: { token: string } }) {
   try {
-    const token = params?.token as string | undefined;
-    if (!token) {
-      return NextResponse.json({ error: "Missing token" }, { status: 400 });
+    const { token } = ctx.params; // if you later want to map token -> advisor, you have it here
+    const body = await req.json();
+
+    const {
+      firstName, lastName, email, phone, dateOfBirth, addressLine1, addressLine2, city, state, postalCode, country, citizenship,
+      employmentStatus, employerName, annualIncomeBand, sourceOfFunds,
+      liquidAssetsBand, illiquidAssetsBand, liabilitiesBand, netWorthBand,
+      hasIRA, has401k, hasTaxable, hasCrypto, hasRealEstate,
+      riskTolerance, timeHorizon, primaryGoals, liquidityNeeds, constraints, investmentExperience,
+      ssn, idDocType, idDocUrl, proofOfAddressUrl, consentAccepted
+    } = body ?? {};
+
+    if (!firstName || !lastName || !email) {
+      return NextResponse.json({ error: "Missing required fields (firstName, lastName, email)" }, { status: 400 });
     }
 
-    const body = await req.json();
-    // Zod schema (we updated earlier) coerces numbers and Date for dob
-    const data = onboardingSchema.parse(body);
+    const enc = await encryptPII(ssn);
+    const consentAcceptedAt = consentAccepted ? new Date() : null;
 
-    // 🔐 Encrypt SSN; only store ciphertext + last4
-    const { ciphertextB64, ivB64, tagB64 } = encryptSSN(data.ssn);
-    const last4 = ssnLast4(data.ssn);
+    const client = await prisma.client.create({
+      data: {
+        firstName, lastName, email, phone,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        addressLine1, addressLine2, city, state, postalCode, country, citizenship,
 
-    // Upsert the session
-    const session = await prisma.onboardingSession.upsert({
-      where: { token },
-      update: { status: "SUBMITTED", submittedAt: new Date() },
-      create: { token, status: "SUBMITTED", submittedAt: new Date() },
+        ssnCipher: enc.cipher,
+        ssnIv: enc.iv,
+
+        employmentStatus, employerName, annualIncomeBand, sourceOfFunds,
+        liquidAssetsBand, illiquidAssetsBand, liabilitiesBand, netWorthBand,
+        hasIRA: !!hasIRA, has401k: !!has401k, hasTaxable: hasTaxable !== false, hasCrypto: !!hasCrypto, hasRealEstate: !!hasRealEstate,
+
+        riskTolerance, timeHorizon,
+        primaryGoals: Array.isArray(primaryGoals) ? primaryGoals : [],
+        liquidityNeeds, constraints: Array.isArray(constraints) ? constraints : [],
+        investmentExperience,
+
+        idDocType, idDocUrl, proofOfAddressUrl,
+        consentAcceptedAt,
+        onboardingStatus: "in_progress",
+      }
     });
 
-    // Build payload; works whether your Prisma model uses Decimal or Float
-    const payload = {
-      email:       data.email,
-      fullName:    data.fullName,
-      ssnLast4:    last4,
-      ssnCiphertext: ciphertextB64,
-      ssnIv:       ivB64,
-      ssnTag:      tagB64,
-      dob:         data.dob, // z.coerce.date() → Date
-      netWorth:    decimalize(data.netWorth),
-      income:      decimalize(data.income),
-      investableAssets: decimalize(data.investableAssets),
-      riskTolerance:    data.riskTolerance as RiskTolerance,
-      termsAccepted:    Boolean(data.termsAccepted),
-      // optional KYC fields — send undefined when empty
-      kycCitizenship:      data.kyc?.citizenship || undefined,
-      kycEmploymentStatus: data.kyc?.employmentStatus || undefined,
-      kycSourceOfFunds:    data.kyc?.sourceOfFunds || undefined,
-      onboardingSession: { connect: { id: session.id } },
-    } as const;
-
-    const client = await prisma.client.upsert({
-      where:  { email: data.email },
-      update: payload as any, // tolerate Decimal vs number
-      create: payload as any,
+    const recs = matchProducts({
+      riskTolerance,
+      timeHorizon,
+      primaryGoals,
+      annualIncomeBand,
+      hasIRA,
+      has401k,
+      hasTaxable,
+      hasCrypto,
     });
 
-    return NextResponse.json(
-      { ok: true, sessionId: session.id, clientId: client.id },
-      { status: 200 },
-    );
+    if (recs.length) {
+      await prisma.productMatch.createMany({
+        data: recs.map(r => ({
+          clientId: client.id,
+          productCode: r.code,
+          productName: r.name,
+          rationale: r.rationale,
+          riskBand: r.risk ?? null,
+        }))
+      });
+    }
+
+    return NextResponse.json({ ok: true, token, clientId: client.id, recommendations: recs });
   } catch (err: any) {
-    const message =
-      err?.issues?.[0]?.message ??
-      err?.message ??
-      "Unexpected error";
-    const status = err?.name === "ZodError" ? 400 : 500;
-    return NextResponse.json({ error: message }, { status });
+    console.error(err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

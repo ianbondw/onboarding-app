@@ -1,61 +1,84 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL_UNPOOLED")
-}
-
-enum OnboardingStatus {
-  DRAFT
-  SUBMITTED
-}
-
-enum RiskTolerance {
-  Low
-  Medium
-  High
-}
-
-model OnboardingSession {
-  id          String           @id @default(cuid())
-  token       String           @unique
-  status      OnboardingStatus @default(DRAFT)
-  submittedAt DateTime?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  client      Client?
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Client {
-  id       String  @id @default(cuid())
-  email    String  @unique
-  fullName String
+  id                 String   @id @default(cuid())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  // 🔐 Encrypted SSN at rest (AES-256-GCM), plus last4 for UX
-  ssnLast4      String?   // <-- make this optional so migration can add it without breaking existing rows
-  ssnCiphertext String
-  ssnIv         String
-  ssnTag        String
+  // Identity & contact
+  firstName          String
+  lastName           String
+  email              String   @unique
+  phone              String?
+  dateOfBirth        DateTime?
+  addressLine1       String?
+  addressLine2       String?
+  city               String?
+  state              String?
+  postalCode         String?
+  country            String?  @default("US")
+  citizenship        String?  @default("US")
 
-  dob DateTime
+  // Sensitive (encrypted)
+  ssnCipher          Bytes?
+  ssnIv              Bytes?
 
-  netWorth         Decimal
-  income           Decimal
-  investableAssets Decimal
+  // Employment & income
+  employmentStatus   String?   // employed | self_employed | student | retired | unemployed
+  employerName       String?
+  annualIncomeBand   String?   // <50k | 50-100k | 100-250k | 250-500k | 500k+
+  sourceOfFunds      String?   // salary | business | inheritance | asset_sale | other
 
-  riskTolerance       RiskTolerance
-  termsAccepted       Boolean
-  kycCitizenship      String?
-  kycEmploymentStatus String?
-  kycSourceOfFunds    String?
+  // Wealth snapshot
+  liquidAssetsBand   String?
+  illiquidAssetsBand String?
+  liabilitiesBand    String?
+  netWorthBand       String?
 
-  onboardingSessionId String?            @unique
-  onboardingSession   OnboardingSession? @relation(fields: [onboardingSessionId], references: [id])
+  // Suitability & preferences
+  riskTolerance        String?   // conservative | moderate | growth | aggressive
+  timeHorizon          String?   // <3y | 3-5y | 5-10y | 10+y
+  primaryGoals         String[]  // [retirement, income, growth, education, legacy, tax]
+  liquidityNeeds       String?   // none | some | high
+  constraints          String[]  // [no_leverage, esg_only]
+  investmentExperience String?   // none | basic | intermediate | advanced
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Existing accounts (light)
+  hasIRA             Boolean   @default(false)
+  has401k            Boolean   @default(false)
+  hasTaxable         Boolean   @default(true)
+  hasCrypto          Boolean   @default(false)
+  hasRealEstate      Boolean   @default(false)
+
+  // KYC docs (store URLs/paths or provider refs)
+  idDocType          String?   // driver_license | passport | other
+  idDocUrl           String?
+  proofOfAddressUrl  String?
+
+  // Consent & status
+  consentAcceptedAt  DateTime?
+  onboardingStatus   String    @default("in_progress") // in_progress | verified | declined
+
+  matches            ProductMatch[]
 }
 
+model ProductMatch {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  client      Client   @relation(fields: [clientId], references: [id])
+  clientId    String
+
+  productCode String
+  productName String
+  rationale   String
+  riskBand    String?
+}
