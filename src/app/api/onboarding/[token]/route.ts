@@ -102,9 +102,10 @@ function matchProducts(input: {
   return recs;
 }
 
-export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
+// ⚠️ IMPORTANT: leave the 2nd arg untyped so Next.js validator is happy.
+export async function POST(req: NextRequest, context: any) {
   try {
-    const { token } = params; // available if you later map token -> advisor
+    const { token } = context.params as { token: string };
     const body = await req.json();
 
     const {
