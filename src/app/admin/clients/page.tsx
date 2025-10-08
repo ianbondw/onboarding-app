@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import Link from "next/link";
 
 // Lazy import Prisma so we can show a nice error if envs are missing

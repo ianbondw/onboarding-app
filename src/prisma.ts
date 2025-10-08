@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 // src/lib/prisma.ts
 import { PrismaClient } from "@prisma/client";
 

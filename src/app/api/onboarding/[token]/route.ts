@@ -1,3 +1,5 @@
+export const runtime = "nodejs"; // IMPORTANT: Prisma requires Node runtime on Vercel
+
 // src/app/api/onboarding/[token]/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
