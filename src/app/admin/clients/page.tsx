@@ -10,7 +10,9 @@ function pick(obj: any, keys: string[], fallback = "") {
   for (const k of keys) if (obj && obj[k] != null) return String(obj[k]);
   return fallback;
 }
-function toLower(s: unknown) { return (s ?? "").toString().toLowerCase(); }
+function toLower(s: unknown) {
+  return (s ?? "").toString().toLowerCase();
+}
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +26,7 @@ export default async function AdminClients(props: any) {
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q)?.toString().trim() ?? "";
   const hasQ = q.length > 0;
 
-  // Debug env inspector (unchanged)
+  // Debug env inspector
   const debug = (Array.isArray(searchParams.debug) ? searchParams.debug[0] : searchParams.debug) === "1";
   if (debug) {
     return (
@@ -37,7 +39,11 @@ export default async function AdminClients(props: any) {
   ADMIN_PASS:             ${Boolean(process.env.ADMIN_PASS)}
 `}</pre>
         <p className="text-sm">If any are <strong>false</strong> on Vercel, set them and redeploy.</p>
-        <p><Link className="link" href="/admin/clients">Back to list</Link></p>
+        <p>
+          <Link className="link" href="/admin/clients">
+            Back to list
+          </Link>
+        </p>
       </main>
     );
   }
@@ -46,23 +52,31 @@ export default async function AdminClients(props: any) {
   let total = 0;
   let errorMsg: string | null = null;
 
+  // ⬇️ metrics we’ll compute from the rows we fetch
+  let metrics = {
+    totalClients: 0,
+    last7d: 0,
+    riskMix: {} as Record<string, number>,
+    goalMix: {} as Record<string, number>,
+  };
+
   try {
     const prisma = await getPrisma();
 
     if (hasQ) {
-      const seed = await prisma.client.findMany({
+      const seed = (await prisma.client.findMany({
         orderBy: { createdAt: "desc" },
         take: 1000,
         include: { matches: true }, // show recommendations if present
-      }) as any[];
+      })) as any[];
 
       const ql = q.toLowerCase();
       const filtered = seed.filter((r) => {
-        const fn = pick(r, ["firstName","givenName","first_name"]);
-        const ln = pick(r, ["lastName","familyName","last_name"]);
-        const em = pick(r, ["email","primaryEmail","contactEmail"]);
-        const nm = pick(r, ["name","fullName","displayName","clientName"]);
-        return [fn, ln, em, nm].some(v => toLower(v).includes(ql));
+        const fn = pick(r, ["firstName", "givenName", "first_name"]);
+        const ln = pick(r, ["lastName", "familyName", "last_name"]);
+        const em = pick(r, ["email", "primaryEmail", "contactEmail"]);
+        const nm = pick(r, ["name", "fullName", "displayName", "clientName"]);
+        return [fn, ln, em, nm].some((v) => toLower(v).includes(ql));
       });
 
       total = filtered.length;
@@ -70,12 +84,26 @@ export default async function AdminClients(props: any) {
       rows = filtered.slice(start, start + PAGE_SIZE);
     } else {
       total = await prisma.client.count();
-      rows = await prisma.client.findMany({
+      rows = (await prisma.client.findMany({
         orderBy: { createdAt: "desc" },
         take: PAGE_SIZE,
         skip: (page - 1) * PAGE_SIZE,
         include: { matches: true },
-      }) as any[];
+      })) as any[];
+    }
+
+    // ⬇️ compute summary metrics from the page of rows we’re showing
+    metrics.totalClients = total;
+    const now = Date.now();
+    for (const r of rows) {
+      if (r?.createdAt && now - new Date(r.createdAt).getTime() <= 7 * 24 * 60 * 60 * 1000) {
+        metrics.last7d++;
+      }
+      const risk = (r?.riskTolerance ?? "unknown").toLowerCase();
+      metrics.riskMix[risk] = (metrics.riskMix[risk] ?? 0) + 1;
+
+      const goals = Array.isArray(r?.primaryGoals) ? r.primaryGoals : [];
+      for (const g of goals) metrics.goalMix[g] = (metrics.goalMix[g] ?? 0) + 1;
     }
   } catch (e: any) {
     console.error("ADMIN/CLIENTS ERROR:", e);
@@ -91,7 +119,11 @@ export default async function AdminClients(props: any) {
           <pre className="mt-2 whitespace-pre-wrap">{errorMsg}</pre>
         </div>
         <p className="text-sm">
-          Try <Link className="link" href="/admin/clients?debug=1">debug mode</Link> to verify env vars on Vercel.
+          Try{" "}
+          <Link className="link" href="/admin/clients?debug=1">
+            debug mode
+          </Link>{" "}
+          to verify env vars on Vercel.
         </p>
       </main>
     );
@@ -100,7 +132,7 @@ export default async function AdminClients(props: any) {
   const totalPages = Math.max(1, Math.ceil(total / 20));
 
   return (
-    <main className="mx-auto max-w-6xl p-6 space-y-4">
+    <main className="mx-auto max-w-6xl p-6 space-y-5">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold">Client Submissions</h1>
         <span className="text-sm text-gray-500">({total} total)</span>
@@ -108,9 +140,37 @@ export default async function AdminClients(props: any) {
 
       <form className="flex gap-2">
         <input className="input w-64" name="q" placeholder="Search name or email…" defaultValue={q} />
-        <button className="btn-secondary" type="submit">Search</button>
-        <Link className="btn-secondary" href="/admin/clients.csv">Export CSV</Link>
+        <button className="btn-secondary" type="submit">
+          Search
+        </button>
+        <Link className="btn-secondary" href="/admin/clients.csv">
+          Export CSV
+        </Link>
       </form>
+
+      {/* ⬇️ Summary tiles */}
+      <section className="grid gap-4 md:grid-cols-4">
+        <Tile label="Total clients" value={String(metrics.totalClients)} />
+        <Tile label="New (7 days)" value={String(metrics.last7d)} />
+        <Tile
+          label="Risk mix"
+          value={
+            Object.entries(metrics.riskMix)
+              .map(([k, v]) => `${k}:${v}`)
+              .join(" · ") || "—"
+          }
+        />
+        <Tile
+          label="Top goals"
+          value={
+            Object.entries(metrics.goalMix)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 3)
+              .map(([k, v]) => `${k}:${v}`)
+              .join(" · ") || "—"
+          }
+        />
+      </section>
 
       <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
         <table className="w-full text-sm">
@@ -127,9 +187,11 @@ export default async function AdminClients(props: any) {
           <tbody>
             {rows.map((r, i) => {
               const created = r?.createdAt ? new Date(r.createdAt).toLocaleString() : "";
-              const nameFallback = [pick(r,["firstName","givenName","first_name"]), pick(r,["lastName","familyName","last_name"])].filter(Boolean).join(" ");
-              const name = pick(r, ["name","fullName","displayName","clientName"], nameFallback) || "(unnamed)";
-              const email = pick(r, ["email","primaryEmail","contactEmail"]);
+              const nameFallback = [pick(r, ["firstName", "givenName", "first_name"]), pick(r, ["lastName", "familyName", "last_name"])]
+                .filter(Boolean)
+                .join(" ");
+              const name = pick(r, ["name", "fullName", "displayName", "clientName"], nameFallback) || "(unnamed)";
+              const email = pick(r, ["email", "primaryEmail", "contactEmail"]);
 
               const risk = r?.riskTolerance ?? "—";
               const horizon = r?.timeHorizon ?? "—";
@@ -137,7 +199,10 @@ export default async function AdminClients(props: any) {
 
               const matches = Array.isArray(r?.matches) ? r.matches : [];
               const recSummary = matches.length
-                ? matches.map((m: any) => `${m.productName} (${m.productCode})`).slice(0,3).join(" · ") + (matches.length > 3 ? ` +${matches.length - 3}` : "")
+                ? matches
+                    .map((m: any) => `${m.productName} (${m.productCode})`)
+                    .slice(0, 3)
+                    .join(" · ") + (matches.length > 3 ? ` +${matches.length - 3}` : "")
                 : "—";
 
               return (
@@ -145,30 +210,58 @@ export default async function AdminClients(props: any) {
                   <td className="p-2">{created}</td>
                   <td className="p-2">{name}</td>
                   <td className="p-2">{email}</td>
-                  <td className="p-2 text-xs text-gray-700">Risk: {risk} · Horizon: {horizon} · Goals: {goals}</td>
+                  <td className="p-2 text-xs text-gray-700">
+                    Risk: {risk} · Horizon: {horizon} · Goals: {goals}
+                  </td>
                   <td className="p-2 text-xs text-gray-700">{recSummary}</td>
                   <td className="p-2 font-mono">{r.id}</td>
                 </tr>
               );
             })}
             {rows.length === 0 && (
-              <tr><td className="p-4 text-gray-500" colSpan={6}>No results.</td></tr>
+              <tr>
+                <td className="p-4 text-gray-500" colSpan={6}>
+                  No results.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
       </div>
 
       <nav className="mt-2 flex items-center gap-2">
-        <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
+        <span className="text-sm text-gray-600">
+          Page {page} of {totalPages}
+        </span>
         <div className="ml-auto flex gap-2">
           {page > 1 && (
-            <Link className="btn-secondary" href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>Prev</Link>
+            <Link
+              className="btn-secondary"
+              href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+            >
+              Prev
+            </Link>
           )}
           {page < totalPages && (
-            <Link className="btn-secondary" href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>Next</Link>
+            <Link
+              className="btn-secondary"
+              href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+            >
+              Next
+            </Link>
           )}
         </div>
       </nav>
     </main>
+  );
+}
+
+/** Small UI helper for the summary section */
+function Tile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border bg-white p-4 shadow-sm">
+      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-1 text-xl font-semibold">{value}</div>
+    </div>
   );
 }
