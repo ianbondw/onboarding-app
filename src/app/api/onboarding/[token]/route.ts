@@ -1,9 +1,7 @@
-export const runtime = "nodejs"; // IMPORTANT: Prisma requires Node runtime on Vercel
-
-// src/app/api/onboarding/[token]/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { encryptPII } from "@/lib/crypto";
+import { prisma } from "../../../../lib/prisma"; // ✅ relative import
+import { encryptPII } from "../../../../lib/crypto";
+export const runtime = "nodejs";
 
 // very simple matching engine (rules based)
 function matchProducts(input: {
