@@ -41,6 +41,7 @@ export default function Wizard() {
     return true;
   }, [step, form]);
 
+  // ⬇️ updated: submit and show advisor recommendations from API response
   async function submit() {
     setLoading(true); setMsg(null);
     try {
@@ -51,9 +52,26 @@ export default function Wizard() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to submit");
-      setMsg("Submitted. Your advisor will review recommendations shortly.");
-    } catch (e:any) { setMsg(e.message); }
-    finally { setLoading(false); }
+
+      const recs = Array.isArray(data?.recommendations) ? data.recommendations : [];
+      if (recs.length === 0) {
+        setMsg("Submitted. No immediate suggestions — advisor will follow up.");
+      } else {
+        setMsg(JSON.stringify({
+          header: "Suggested strategies & products",
+          items: recs.map((r:any) => ({
+            code: r.code,
+            name: r.name,
+            rationale: r.rationale,
+            risk: r.risk ?? "—"
+          }))
+        }));
+      }
+    } catch (e:any) {
+      setMsg(JSON.stringify({ error: e.message }));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -179,7 +197,36 @@ export default function Wizard() {
             )}
           </div>
 
-          {msg && <p className="mt-4 text-sm text-slate-700">{msg}</p>}
+          {/* ⬇️ updated: render advisor suggestions nicely */}
+          {msg && (
+            <div className="mt-6 rounded-xl border bg-slate-50 p-4">
+              {(() => {
+                try {
+                  const parsed = JSON.parse(msg);
+                  if (parsed?.error) return <p className="text-sm text-red-700">{parsed.error}</p>;
+                  return (
+                    <div>
+                      <div className="text-sm font-medium text-slate-900">{parsed.header}</div>
+                      <ul className="mt-3 space-y-3">
+                        {parsed.items.map((it:any, idx:number) => (
+                          <li key={idx} className="rounded-lg border bg-white p-3">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="font-medium">{it.name}</span>
+                              <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white">{it.code}</span>
+                            </div>
+                            <p className="mt-1 text-sm text-slate-700">{it.rationale}</p>
+                            <p className="mt-1 text-xs text-slate-500">Risk band: {it.risk}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                } catch {
+                  return <p className="text-sm text-slate-700">{String(msg)}</p>;
+                }
+              })()}
+            </div>
+          )}
         </div>
       </div>
     </div>
