@@ -1,10 +1,6 @@
 // src/app/onboarding/[token]/page.tsx
 import Wizard from "./wizard";
 
-export default function TokenOnboardingPage() {
-  return (
-    <main className="space-y-6">
-      <Wizard />
-    </main>
-  );
+export default function OnboardingTokenPage(props: { params: { token: string } }) {
+  return <Wizard params={props.params} />;
 }
