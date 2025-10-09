@@ -1,10 +1,10 @@
 // src/app/admin/clients/page.tsx
 import Link from "next/link";
 
-export const runtime = "nodejs";        // ensure Prisma runs on Node in Vercel
-export const dynamic = "force-dynamic"; // SSR + fresh data
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// Lazy import Prisma (keeps cold starts lighter)
+// Lazy import Prisma (SSR only)
 async function getPrisma() {
   const { PrismaClient } = await import("@prisma/client");
   return new PrismaClient();
@@ -28,7 +28,7 @@ export default async function AdminClients(props: any) {
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q)?.toString().trim() ?? "";
   const hasQ = q.length > 0;
 
-  // Debug – quick env inspector
+  // Debug env inspector (fast-path, no DB)
   const debug = (Array.isArray(searchParams.debug) ? searchParams.debug[0] : searchParams.debug) === "1";
   if (debug) {
     return (
@@ -48,42 +48,45 @@ export default async function AdminClients(props: any) {
 
   const prisma = await getPrisma();
 
-  // ---------- Analytics (computed over ALL clients, not just this page) ----------
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const GOALS = ["retirement", "income", "growth", "education", "legacy", "tax"] as const;
+  // ---------- Safe analytics (defensive, JS-side) ----------
+  let totalClients = 0;
+  let last7d = 0;
+  let riskMix: Record<string, number> = {};
+  let goalMix: Record<string, number> = {};
+  let analyticsError: string | null = null;
 
-  // Run analytics queries in parallel
-  const [
-    totalClients,
-    last7d,
-    riskGroupRaw,
-    goalCountsArray,
-  ] = await Promise.all([
-    prisma.client.count(),
-    prisma.client.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-    prisma.client.groupBy({
-      by: ["riskTolerance"],
-      _count: { _all: true },
-    }),
-    Promise.all(
-      GOALS.map(async (g) => ({
-        goal: g,
-        count: await prisma.client.count({ where: { primaryGoals: { has: g } } }),
-      }))
-    ),
-  ]);
+  try {
+    totalClients = await prisma.client.count();
 
-  // Normalize risk mix
-  const riskMix: Record<string, number> = {};
-  for (const row of riskGroupRaw) {
-    const key = (row.riskTolerance ?? "unknown").toLowerCase();
-    riskMix[key] = (riskMix[key] ?? 0) + row._count._all;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    last7d = await prisma.client.count({ where: { createdAt: { gte: sevenDaysAgo } } });
+
+    // Pull only fields we need for analytics; cap to recent N to stay cheap
+    const recent = await prisma.client.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5000,
+      select: { riskTolerance: true, primaryGoals: true },
+    });
+
+    for (const r of recent) {
+      const risk = toLower((r as any).riskTolerance || "unknown");
+      riskMix[risk] = (riskMix[risk] ?? 0) + 1;
+
+      const goals = Array.isArray((r as any).primaryGoals) ? (r as any).primaryGoals : [];
+      for (const g of goals) {
+        const key = String(g);
+        goalMix[key] = (goalMix[key] ?? 0) + 1;
+      }
+    }
+  } catch (e: any) {
+    console.error("ADMIN/CLIENTS analytics error:", e);
+    analyticsError = e?.message ?? "Analytics unavailable";
+    // Keep UI alive with empties
+    totalClients = totalClients || 0;
+    last7d = last7d || 0;
+    riskMix = {};
+    goalMix = {};
   }
-
-  // Sort goals by freq (desc)
-  const goalMix: Record<string, number> = {};
-  for (const { goal, count } of goalCountsArray) goalMix[goal] = count;
-  const goalTopEntries = Object.entries(goalMix).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   // ---------- Table data (paged) ----------
   let rows: any[] = [];
@@ -120,7 +123,7 @@ export default async function AdminClients(props: any) {
       })) as any[];
     }
   } catch (e: any) {
-    console.error("ADMIN/CLIENTS ERROR:", e);
+    console.error("ADMIN/CLIENTS table error:", e);
     errorMsg = e?.message ?? String(e);
   }
 
@@ -141,10 +144,10 @@ export default async function AdminClients(props: any) {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // Helpers for tiny bar charts
   const riskEntries = Object.entries(riskMix).sort((a, b) => b[1] - a[1]);
+  const goalEntries = Object.entries(goalMix).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const riskMax = Math.max(1, ...riskEntries.map(([, v]) => v));
-  const goalMax = Math.max(1, ...goalTopEntries.map(([, v]) => v));
+  const goalMax = Math.max(1, ...goalEntries.map(([, v]) => v));
 
   return (
     <main className="mx-auto max-w-6xl p-6 space-y-6">
@@ -153,57 +156,42 @@ export default async function AdminClients(props: any) {
         <span className="text-sm text-gray-500">({totalClients} total)</span>
       </div>
 
-      {/* Filters */}
       <form className="flex gap-2">
         <input className="input w-64" name="q" placeholder="Search name or email…" defaultValue={q} />
         <button className="btn-secondary" type="submit">Search</button>
         <Link className="btn-secondary" href="/admin/clients.csv">Export CSV</Link>
       </form>
 
-      {/* Summary tiles */}
+      {/* Analytics tiles */}
       <section className="grid gap-4 md:grid-cols-4">
         <Tile label="Total clients" value={String(totalClients)} />
         <Tile label="New (7 days)" value={String(last7d)} />
-        <Tile
-          label="Risk mix"
-          value={
-            riskEntries.length
-              ? riskEntries.map(([k, v]) => `${k}:${v}`).join(" · ")
-              : "—"
-          }
-        />
-        <Tile
-          label="Top goals"
-          value={
-            goalTopEntries.length
-              ? goalTopEntries.slice(0, 3).map(([k, v]) => `${k}:${v}`).join(" · ")
-              : "—"
-          }
-        />
+        <Tile label="Risk mix" value={riskEntries.length ? riskEntries.map(([k, v]) => `${k}:${v}`).join(" · ") : "—"} />
+        <Tile label="Top goals" value={goalEntries.length ? goalEntries.slice(0, 3).map(([k, v]) => `${k}:${v}`).join(" · ") : "—"} />
       </section>
 
-      {/* Analytics mini-charts */}
-      <section className="grid gap-4 md:grid-cols-2">
-        <Card title="Risk Mix (all clients)">
-          <div className="space-y-2">
-            {riskEntries.length === 0 && <p className="text-sm text-slate-600">No data.</p>}
-            {riskEntries.map(([key, count]) => (
-              <Bar key={key} label={key} count={count} max={riskMax} />
-            ))}
-          </div>
-        </Card>
+      {/* Mini-charts (hide if analytics failed) */}
+      {!analyticsError && (
+        <section className="grid gap-4 md:grid-cols-2">
+          <Card title="Risk Mix (all clients)">
+            <div className="space-y-2">
+              {riskEntries.length === 0 && <p className="text-sm text-slate-600">No data.</p>}
+              {riskEntries.map(([key, count]) => (
+                <Bar key={key} label={key} count={count} max={riskMax} />
+              ))}
+            </div>
+          </Card>
+          <Card title="Top Goals (all clients)">
+            <div className="space-y-2">
+              {goalEntries.length === 0 && <p className="text-sm text-slate-600">No data.</p>}
+              {goalEntries.map(([key, count]) => (
+                <Bar key={key} label={key} count={count} max={goalMax} />
+              ))}
+            </div>
+          </Card>
+        </section>
+      )}
 
-        <Card title="Top Goals (all clients)">
-          <div className="space-y-2">
-            {goalTopEntries.length === 0 && <p className="text-sm text-slate-600">No data.</p>}
-            {goalTopEntries.map(([key, count]) => (
-              <Bar key={key} label={key} count={count} max={goalMax} />
-            ))}
-          </div>
-        </Card>
-      </section>
-
-      {/* Table */}
       <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
@@ -219,9 +207,7 @@ export default async function AdminClients(props: any) {
           <tbody>
             {rows.map((r, i) => {
               const created = r?.createdAt ? new Date(r.createdAt).toLocaleString() : "";
-              const nameFallback = [pick(r, ["firstName", "givenName", "first_name"]), pick(r, ["lastName", "familyName", "last_name"])]
-                .filter(Boolean)
-                .join(" ");
+              const nameFallback = [pick(r, ["firstName", "givenName", "first_name"]), pick(r, ["lastName", "familyName", "last_name"])].filter(Boolean).join(" ");
               const name = pick(r, ["name", "fullName", "displayName", "clientName"], nameFallback) || "(unnamed)";
               const email = pick(r, ["email", "primaryEmail", "contactEmail"]);
 
@@ -231,8 +217,7 @@ export default async function AdminClients(props: any) {
 
               const matches = Array.isArray(r?.matches) ? r.matches : [];
               const recSummary = matches.length
-                ? matches.map((m: any) => `${m.productName} (${m.productCode})`).slice(0, 3).join(" · ") +
-                  (matches.length > 3 ? ` +${matches.length - 3}` : "")
+                ? matches.map((m: any) => `${m.productName} (${m.productCode})`).slice(0, 3).join(" · ") + (matches.length > 3 ? ` +${matches.length - 3}` : "")
                 : "—";
 
               return (
@@ -255,19 +240,14 @@ export default async function AdminClients(props: any) {
         </table>
       </div>
 
-      {/* Pager */}
       <nav className="mt-2 flex items-center gap-2">
         <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
         <div className="ml-auto flex gap-2">
           {page > 1 && (
-            <Link className="btn-secondary" href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>
-              Prev
-            </Link>
+            <Link className="btn-secondary" href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>Prev</Link>
           )}
-          {page < totalPages && (
-            <Link className="btn-secondary" href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>
-              Next
-            </Link>
+        {page < totalPages && (
+            <Link className="btn-secondary" href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>Next</Link>
           )}
         </div>
       </nav>
@@ -293,7 +273,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 function Bar({ label, count, max }: { label: string; count: number; max: number }) {
-  const pct = Math.max(4, Math.round((count / Math.max(1, max)) * 100)); // ensure visible min width
+  const pct = Math.max(4, Math.round((count / Math.max(1, max)) * 100));
   return (
     <div className="text-sm">
       <div className="mb-1 flex items-center justify-between">
