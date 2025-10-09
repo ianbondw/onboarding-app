@@ -29,8 +29,13 @@ model Client {
   citizenship        String?  @default("US")
 
   // Sensitive (encrypted)
+  // LEGACY (kept for safety; not used going forward)
   ssnCipher          Bytes?
   ssnIv              Bytes?
+
+  // NEW packed AES-GCM fields: iv(12) | ciphertext | tag(16)
+  ssnEnc             Bytes?
+  dobEnc             Bytes?
 
   // Employment & income
   employmentStatus   String?   // employed | self_employed | student | retired | unemployed
@@ -68,7 +73,21 @@ model Client {
   consentAcceptedAt  DateTime?
   onboardingStatus   String    @default("in_progress") // in_progress | verified | declined
 
+  // Advisor tracking (new)
+  advisorId          String?   // e.g., token/slug for /onboarding?advisor=<id>
+  advisorName        String?
+  advisorFirm        String?
+
+  // Intake link token (new)
+  intakeToken        String?   @unique
+
+  // Full submission snapshot for audit/analytics (new)
+  rawSubmission      Json?
+
   matches            ProductMatch[]
+
+  @@index([createdAt])
+  @@index([advisorId])
 }
 
 model ProductMatch {
