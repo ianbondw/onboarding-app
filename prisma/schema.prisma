@@ -75,6 +75,7 @@ model Client {
 
   // Advisor tracking (new)
   advisorId          String?   // e.g., token/slug for /onboarding?advisor=<id>
+  advisor            Advisor?  @relation(fields: [advisorId], references: [id])
   advisorName        String?
   advisorFirm        String?
 
@@ -100,4 +101,28 @@ model ProductMatch {
   productName String
   rationale   String
   riskBand    String?
+}
+
+model Advisor {
+  id          String       @id @default(cuid())
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  slug        String       @unique
+  name        String
+  firm        String?
+  clients     Client[]
+  intakeLinks IntakeLink[]
+}
+
+model IntakeLink {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  token     String   @unique
+
+  advisor   Advisor  @relation(fields: [advisorId], references: [id], onDelete: Cascade)
+  advisorId String
+
+  expiresAt DateTime?
+  isActive  Boolean  @default(true)
 }
