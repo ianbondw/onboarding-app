@@ -61,11 +61,11 @@ export default async function AdminClients(props: any) {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     last7d = await prisma.client.count({ where: { createdAt: { gte: sevenDaysAgo } } });
 
-    // Pull only fields we need for analytics; cap to recent N to stay cheap
+    // Pull only the fields we need; wrapped in try in case columns differ
     const recent = await prisma.client.findMany({
       orderBy: { createdAt: "desc" },
       take: 5000,
-      select: { riskTolerance: true, primaryGoals: true },
+      select: { riskTolerance: true, primaryGoals: true }, // keep minimal
     });
 
     for (const r of recent) {
@@ -93,17 +93,67 @@ export default async function AdminClients(props: any) {
   let total = 0;
   let errorMsg: string | null = null;
 
+  // Select sets that intentionally avoid firstName/lastName (since DB may not have them)
+  const WIDE_SELECT = {
+    id: true,
+    createdAt: true,
+    email: true,
+    name: true,                // optional; safe if column exists
+    riskTolerance: true,       // optional; safe if column exists
+    timeHorizon: true,         // optional; safe if column exists
+    primaryGoals: true,        // optional; safe if column exists
+    // matches intentionally omitted to avoid relation issues; we render "—" if absent
+  } as const;
+
+  const NARROW_SELECT = {
+    id: true,
+    createdAt: true,
+    email: true,
+    // absolute minimum set that virtually every schema has
+  } as const;
+
+  async function safePagedRows(skip = 0, take = PAGE_SIZE) {
+    // try a richer select; if it blows up (column missing), fall back
+    try {
+      return await prisma.client.findMany({
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+        select: WIDE_SELECT,
+      });
+    } catch {
+      return await prisma.client.findMany({
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+        select: NARROW_SELECT,
+      });
+    }
+  }
+
+  async function safeSeed(limit = 1000) {
+    try {
+      return await prisma.client.findMany({
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        select: WIDE_SELECT,
+      });
+    } catch {
+      return await prisma.client.findMany({
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        select: NARROW_SELECT,
+      });
+    }
+  }
+
   try {
     if (hasQ) {
-      const seed = (await prisma.client.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 1000,
-        include: { matches: true },
-      })) as any[];
+      const seed = (await safeSeed()) as any[];
 
       const ql = q.toLowerCase();
       const filtered = seed.filter((r) => {
-        const fn = pick(r, ["firstName", "givenName", "first_name"]);
+        const fn = pick(r, ["firstName", "givenName", "first_name"]); // will be empty if not present
         const ln = pick(r, ["lastName", "familyName", "last_name"]);
         const em = pick(r, ["email", "primaryEmail", "contactEmail"]);
         const nm = pick(r, ["name", "fullName", "displayName", "clientName"]);
@@ -115,12 +165,7 @@ export default async function AdminClients(props: any) {
       rows = filtered.slice(start, start + PAGE_SIZE);
     } else {
       total = await prisma.client.count();
-      rows = (await prisma.client.findMany({
-        orderBy: { createdAt: "desc" },
-        take: PAGE_SIZE,
-        skip: (page - 1) * PAGE_SIZE,
-        include: { matches: true },
-      })) as any[];
+      rows = (await safePagedRows((page - 1) * PAGE_SIZE, PAGE_SIZE)) as any[];
     }
   } catch (e: any) {
     console.error("ADMIN/CLIENTS table error:", e);
@@ -207,18 +252,21 @@ export default async function AdminClients(props: any) {
           <tbody>
             {rows.map((r, i) => {
               const created = r?.createdAt ? new Date(r.createdAt).toLocaleString() : "";
-              const nameFallback = [pick(r, ["firstName", "givenName", "first_name"]), pick(r, ["lastName", "familyName", "last_name"])].filter(Boolean).join(" ");
+              // We may not have first/last; try multiple fallbacks
+              const nameFallback = [pick(r, ["firstName", "givenName", "first_name"]), pick(r, ["lastName", "familyName", "last_name"])]
+                .filter(Boolean)
+                .join(" ");
               const name = pick(r, ["name", "fullName", "displayName", "clientName"], nameFallback) || "(unnamed)";
               const email = pick(r, ["email", "primaryEmail", "contactEmail"]);
 
-              const risk = r?.riskTolerance ?? "—";
-              const horizon = r?.timeHorizon ?? "—";
-              const goals = Array.isArray(r?.primaryGoals) && r.primaryGoals.length > 0 ? r.primaryGoals.join(", ") : "—";
-
-              const matches = Array.isArray(r?.matches) ? r.matches : [];
-              const recSummary = matches.length
-                ? matches.map((m: any) => `${m.productName} (${m.productCode})`).slice(0, 3).join(" · ") + (matches.length > 3 ? ` +${matches.length - 3}` : "")
+              const risk = (r as any)?.riskTolerance ?? "—";
+              const horizon = (r as any)?.timeHorizon ?? "—";
+              const goals = Array.isArray((r as any)?.primaryGoals) && (r as any).primaryGoals.length > 0
+                ? (r as any).primaryGoals.join(", ")
                 : "—";
+
+              // matches omitted in safe select → show "—"
+              const recSummary = "—";
 
               return (
                 <tr key={r.id ?? i} className="border-t hover:bg-gray-50 transition">
@@ -227,7 +275,7 @@ export default async function AdminClients(props: any) {
                   <td className="p-2">{email}</td>
                   <td className="p-2 text-xs text-gray-700">Risk: {risk} · Horizon: {horizon} · Goals: {goals}</td>
                   <td className="p-2 text-xs text-gray-700">{recSummary}</td>
-                  <td className="p-2 font-mono">{r.id}</td>
+                  <td className="p-2 font-mono">{(r as any).id}</td>
                 </tr>
               );
             })}
@@ -246,7 +294,7 @@ export default async function AdminClients(props: any) {
           {page > 1 && (
             <Link className="btn-secondary" href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>Prev</Link>
           )}
-        {page < totalPages && (
+          {page < totalPages && (
             <Link className="btn-secondary" href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>Next</Link>
           )}
         </div>
