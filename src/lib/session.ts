@@ -1,10 +1,12 @@
+// src/lib/session.ts
 import { cookies } from "next/headers";
 import { verifyAdvisorToken } from "./jwt";
 
+export const ADMIN_COOKIE = "advisor_admin";
+
 export async function getAdvisorIdFromCookie(): Promise<string | null> {
-  const jar = await cookies();
-  const token = jar.get("demo_advisor_token")?.value;
-  if (!token) return null;
-  const v = verifyAdvisorToken(token);
-  return v?.advisorId ?? null;
+  const c = (await cookies()).get(ADMIN_COOKIE)?.value;
+  if (!c) return null;
+  const payload = verifyAdvisorToken(c);
+  return payload?.sub ?? null;
 }
