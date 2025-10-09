@@ -1,15 +1,11 @@
 // src/app/admin/clients/page.tsx
 import Link from "next/link";
-import { prisma } from "@/src/lib/prisma";
-import { getAdvisorIdFromCookie } from "@/src/lib/session";
+import { prisma } from "../../../prisma";
+import { getAdvisorIdFromCookie } from "../../../lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function pick(obj: any, keys: string[], fallback = "") {
-  for (const k of keys) if (obj && obj[k] != null) return String(obj[k]);
-  return fallback;
-}
 function toLower(s: unknown) {
   return (s ?? "").toString().toLowerCase();
 }
@@ -97,7 +93,7 @@ export default async function AdminClients(props: any) {
       const filtered = all.filter((r) =>
         [r.firstName, r.lastName, r.email]
           .filter(Boolean)
-          .some((v) => v.toLowerCase().includes(qLower))
+          .some((v) => (v as string).toLowerCase().includes(qLower))
       );
       total = filtered.length;
       rows = filtered.slice(PAGE_SKIP, PAGE_SKIP + PAGE_SIZE);
@@ -155,27 +151,6 @@ export default async function AdminClients(props: any) {
           Export CSV
         </Link>
       </form>
-
-      <section className="grid gap-4 md:grid-cols-4">
-        <Tile label="Total clients" value={String(totalClients)} />
-        <Tile label="New (7 days)" value={String(last7d)} />
-        <Tile
-          label="Risk mix"
-          value={
-            riskEntries.length
-              ? riskEntries.map(([k, v]) => `${k}:${v}`).join(" · ")
-              : "—"
-          }
-        />
-        <Tile
-          label="Top goals"
-          value={
-            goalEntries.length
-              ? goalEntries.slice(0, 3).map(([k, v]) => `${k}:${v}`).join(" · ")
-              : "—"
-          }
-        />
-      </section>
 
       {!analyticsError && (
         <section className="grid gap-4 md:grid-cols-2">
@@ -274,17 +249,6 @@ export default async function AdminClients(props: any) {
   );
 }
 
-/** UI helpers */
-function Tile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border bg-white p-4 shadow-sm">
-      <div className="text-xs uppercase tracking-wide text-slate-500">
-        {label}
-      </div>
-      <div className="mt-1 text-xl font-semibold">{value}</div>
-    </div>
-  );
-}
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border bg-white p-5 shadow-sm">
@@ -302,10 +266,7 @@ function Bar({ label, count, max }: { label: string; count: number; max: number 
         <span className="tabular-nums text-slate-500">{count}</span>
       </div>
       <div className="h-2 w-full rounded-full bg-slate-100">
-        <div
-          className="h-2 rounded-full bg-slate-900"
-          style={{ width: `${pct}%` }}
-        />
+        <div className="h-2 rounded-full bg-slate-900" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );

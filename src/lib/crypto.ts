@@ -1,35 +1,48 @@
 // src/lib/crypto.ts
-// AES-256-GCM helpers for encrypting PII (e.g., SSN). Key is base64-encoded 32 bytes.
+import crypto from "crypto";
 
-const keyB64 = process.env.PII_ENC_KEY;
-
-async function getKey() {
-  if (!keyB64) return null;
-  const raw = Buffer.from(keyB64, "base64");
-  if (raw.length !== 32) throw new Error("PII_ENC_KEY must be 32 bytes (base64-encoded).");
-  return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+/**
+ * Derive a 32-byte key from PII_ENC_KEY.
+ * Accepts base64, hex, or utf8; hashes to 32 bytes if needed.
+ */
+function getKeyBytes(): Buffer {
+  const raw = process.env.PII_ENC_KEY || "";
+  if (!raw) throw new Error("Missing PII_ENC_KEY");
+  // try base64
+  try {
+    const b64 = Buffer.from(raw, "base64");
+    if (b64.length >= 32) return b64.slice(0, 32);
+  } catch {}
+  // try hex
+  if (/^[0-9a-fA-F]+$/.test(raw)) {
+    const hex = Buffer.from(raw, "hex");
+    if (hex.length >= 32) return hex.slice(0, 32);
+  }
+  // fallback: hash utf8
+  return crypto.createHash("sha256").update(raw, "utf8").digest();
 }
 
-export async function encryptPII(value?: string) {
-  if (!value) return { cipher: null as Buffer | null, iv: null as Buffer | null };
-  const key = await getKey();
-  if (!key) return { cipher: null, iv: null };
-
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encoded = new TextEncoder().encode(value);
-  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
-
-  return { cipher: Buffer.from(ct), iv: Buffer.from(iv) };
+/**
+ * AES-256-GCM encrypt string and return packed bytes:
+ * [ 12-byte IV | ciphertext | 16-byte auth tag ]
+ */
+export function encryptToPackedBytes(plain: string): Buffer {
+  const key = getKeyBytes();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const ct = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, ct, tag]);
 }
 
-export async function decryptPII(cipher?: Buffer | Uint8Array | null, iv?: Buffer | Uint8Array | null) {
-  const key = await getKey();
-  if (!key || !cipher || !iv) return null;
-
-  const pt = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: new Uint8Array(iv) },
-    key,
-    new Uint8Array(cipher)
-  );
-  return new TextDecoder().decode(pt);
+/** Optional helper to decrypt packed bytes back to utf8 (not required for writes) */
+export function decryptFromPackedBytes(packed: Buffer): string {
+  const key = getKeyBytes();
+  const iv = packed.subarray(0, 12);
+  const tag = packed.subarray(packed.length - 16);
+  const ct = packed.subarray(12, packed.length - 16);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
+  return pt.toString("utf8");
 }

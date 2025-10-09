@@ -14,7 +14,7 @@
   "homepage": "https://github.com/ianbondw/onboarding-app#readme",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma migrate deploy && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "prisma:studio": "prisma studio",

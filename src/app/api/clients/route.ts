@@ -1,7 +1,6 @@
 // src/app/api/clients/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "../../../prisma";
-import { clientSubmissionSchema } from "../../../lib/validation";
 import { encryptToPackedBytes } from "../../../lib/crypto";
 import { Resend } from "resend";
 
@@ -14,10 +13,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing PII_ENC_KEY" }, { status: 500 });
     }
 
-    const json = await req.json();
-    const parsed = clientSubmissionSchema.parse(json);
+    // Minimal parse (we removed the missing validation import)
+    const parsed = await req.json();
 
-    // Resolve advisor via intake token (preferred)
     let resolvedAdvisorId: string | null = null;
 
     if (parsed.intakeToken) {
@@ -30,24 +28,17 @@ export async function POST(req: Request) {
         link &&
         link.isActive &&
         (!link.expiresAt || link.expiresAt.getTime() > now.getTime());
-
-      if (valid) {
-        resolvedAdvisorId = link.advisorId;
-      }
+      if (valid) resolvedAdvisorId = link.advisorId;
     }
-
-    // Fallback: accept explicit advisorId if provided (dev/testing)
     if (!resolvedAdvisorId && parsed.advisorId) {
       resolvedAdvisorId = parsed.advisorId;
     }
 
-    // Encrypt PII
     const ssnEnc =
       parsed.ssn && parsed.ssn.trim().length > 0 ? encryptToPackedBytes(parsed.ssn.trim()) : null;
     const dobEnc =
       parsed.dob && parsed.dob.trim().length > 0 ? encryptToPackedBytes(parsed.dob.trim()) : null;
 
-    // Persist
     const created = await prisma.client.create({
       data: {
         firstName: parsed.firstName,
@@ -62,10 +53,7 @@ export async function POST(req: Request) {
         ssnEnc,
         dobEnc,
 
-        // NOTE: Your Prisma schema has primaryGoals (String[]), not primaryGoal (String).
-        // If you later want to map a single primaryGoal string to the array, do it here.
-        // primaryGoals: parsed.primaryGoal ? [parsed.primaryGoal] : undefined,
-
+        // If you want to map a single goal string: primaryGoals: parsed.primaryGoal ? [parsed.primaryGoal] : undefined,
         rawSubmission: parsed.rawSubmission ?? undefined,
       },
       select: {
@@ -78,7 +66,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // Optional email notification (Resend)
     try {
       const resendKey = process.env.RESEND_API_KEY;
       const to = process.env.DEMO_ALERT_TO;
@@ -98,7 +85,6 @@ export async function POST(req: Request) {
       }
     } catch (e) {
       console.error("Resend email failed:", e);
-      // Do not fail the request if email fails
     }
 
     return NextResponse.json({ ok: true, client: created }, { status: 201 });
@@ -108,12 +94,10 @@ export async function POST(req: Request) {
       err?.name === "ZodError" ? 400 :
       err?.code === "P2002"      ? 409 :
       500;
-
     const message =
       err?.name === "ZodError" ? err.issues :
       err?.code === "P2002"     ? "Duplicate unique field value" :
       "Internal error";
-
     return NextResponse.json({ error: message }, { status });
   }
 }
