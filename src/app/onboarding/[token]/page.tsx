@@ -6,6 +6,7 @@ export default async function OnboardingTokenPage({
 }: {
   params: Promise<{ token: string }>;
 }) {
-  const p = await params; // Next.js 15 passes params as a Promise
-  return <Wizard params={p} />;
+  const { token } = await params; // Next.js 15: params is a Promise
+  // Pass only the token prop; Wizard shouldn't receive a `params` object
+  return <Wizard token={token} />;
 }
