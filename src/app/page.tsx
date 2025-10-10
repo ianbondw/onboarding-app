@@ -6,7 +6,7 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      {/* NAV (page-level) */}
+      {/* NAV */}
       <header className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="size-8 rounded-xl bg-black" />
@@ -39,33 +39,17 @@ export default function Home() {
             <Link href="/onboarding" className="rounded-xl px-5 py-3 text-sm font-medium bg-gray-900 text-white">Start Interactive Demo</Link>
             <a href="#book" className="rounded-xl px-5 py-3 text-sm font-medium border">Request Pilot</a>
           </div>
-          <div className="mt-4 text-xs text-gray-500">
-            No credit card • SOC2-friendly architecture • Works on desktop & mobile
-          </div>
+          <div className="mt-4 text-xs text-gray-500">No credit card • SOC2-friendly architecture • Works on desktop & mobile</div>
         </div>
-
-        {/* Right card with logo placeholder + features */}
         <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm text-gray-500">What you’ll see</div>
-            <span className="rounded-full border px-2.5 py-0.5 text-[11px] text-gray-700">White-label ready</span>
-          </div>
-
-          {/* Logo placeholder row */}
-          <div className="mb-4 flex items-center gap-3">
-            <div className="h-8 w-28 rounded-md border border-dashed text-xs text-gray-500 flex items-center justify-center">
-              Your logo
-            </div>
-            <span className="text-xs text-gray-500">Swap with your firm logo</span>
-          </div>
-
+          <div className="text-sm text-gray-500 mb-3">What you’ll see</div>
           <ul className="grid grid-cols-2 gap-3 text-sm text-gray-700">
             <li className="rounded-xl border p-3">KYC / CIP basics</li>
             <li className="rounded-xl border p-3">Risk tolerance</li>
-            <li className="rounded-xl border p-3">Income & net worth</li>
-            <li className="rounded-xl border p-3">Document upload</li>
-            <li className="rounded-xl border p-3">Per-advisor analytics</li>
-            <li className="rounded-xl border p-3">Email notifications</li>
+            <li className="rounded-2xl border p-3">Income & net worth</li>
+            <li className="rounded-2xl border p-3">Document upload</li>
+            <li className="rounded-2xl border p-3">Per-advisor analytics</li>
+            <li className="rounded-2xl border p-3">Email notifications</li>
           </ul>
         </div>
       </section>
@@ -88,21 +72,15 @@ export default function Home() {
         <div className="grid md:grid-cols-3 gap-4">
           <div className="rounded-2xl border p-5 bg-white">
             <div className="text-sm font-semibold">1) Share a link</div>
-            <p className="mt-2 text-sm text-gray-600">
-              Each advisor gets a unique URL. Track usage by advisor or even per person with <code>?contact=</code> tags.
-            </p>
+            <p className="mt-2 text-sm text-gray-600">Each advisor gets a unique URL. Track usage by advisor or even per person with <code>?contact=</code> tags.</p>
           </div>
           <div className="rounded-2xl border p-5 bg-white">
             <div className="text-sm font-semibold">2) Client completes guided intake</div>
-            <p className="mt-2 text-sm text-gray-600">
-              KYC/CIP essentials, risk score, income/net worth and documents — mobile friendly.
-            </p>
+            <p className="mt-2 text-sm text-gray-600">KYC/CIP essentials, risk score, income/net worth and documents — mobile friendly.</p>
           </div>
           <div className="rounded-2xl border p-5 bg-white">
             <div className="text-sm font-semibold">3) Review in Admin</div>
-            <p className="mt-2 text-sm text-gray-600">
-              See weekly submissions, completion rates, and averages. Export or push downstream.
-            </p>
+            <p className="mt-2 text-sm text-gray-600">See weekly submissions, completion rates, and averages. Export or push downstream.</p>
           </div>
         </div>
       </section>
@@ -118,29 +96,44 @@ export default function Home() {
         </ul>
       </section>
 
-      {/* PRICING */}
+      {/* PRICING (Hybrid) */}
       <section id="pricing" className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14">
         <h2 className="text-2xl font-semibold mb-6">Pricing</h2>
         <div className="grid md:grid-cols-3 gap-4">
           <div className="rounded-2xl border p-6 bg-white">
-            <div className="text-sm font-semibold">Starter (Pilot)</div>
-            <div className="mt-2 text-3xl font-bold">$0</div>
-            <p className="mt-2 text-sm text-gray-600">1 advisor • up to 25 intakes • demo only</p>
-            <Link href="/onboarding" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-medium bg-gray-900 text-white">Start demo</Link>
+            <div className="text-sm font-semibold">Starter</div>
+            <div className="mt-2 text-3xl font-bold">$99<span className="text-base font-medium">/advisor/mo</span></div>
+            <p className="mt-2 text-sm text-gray-600">
+              Includes <strong>25</strong> completed intakes per advisor/month. Then <strong>$10</strong> per additional intake.
+            </p>
+            <Link href="/onboarding" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-medium bg-gray-900 text-white">
+              Start demo
+            </Link>
           </div>
+
           <div className="rounded-2xl border p-6 bg-white">
             <div className="text-sm font-semibold">Team</div>
-            <div className="mt-2 text-3xl font-bold">$199/mo</div>
-            <p className="mt-2 text-sm text-gray-600">Up to 10 advisors • analytics • email alerts</p>
-            <a href="#book" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-medium border">Request pilot</a>
+            <div className="mt-2 text-3xl font-bold">$399<span className="text-base font-medium">/mo</span></div>
+            <p className="mt-2 text-sm text-gray-600">
+              Up to <strong>10 advisors</strong>. Includes <strong>200</strong> completed intakes/month. Then <strong>$8</strong> each.
+            </p>
+            <a href="#book" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-medium border">
+              Request pilot
+            </a>
           </div>
+
           <div className="rounded-2xl border p-6 bg-white">
             <div className="text-sm font-semibold">Enterprise</div>
             <div className="mt-2 text-3xl font-bold">Custom</div>
-            <p className="mt-2 text-sm text-gray-600">SSO • custom fields • integrations</p>
-            <a href="#book" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-medium border">Talk to us</a>
+            <p className="mt-2 text-sm text-gray-600">SSO • custom fields • custodians/CRM integrations • SLA</p>
+            <a href="#book" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-medium border">
+              Talk to us
+            </a>
           </div>
         </div>
+        <p className="mt-3 text-xs text-gray-500">
+          Beta promo: first <strong>50</strong> completed intakes free for new teams.
+        </p>
       </section>
 
       {/* FAQ */}
@@ -149,15 +142,11 @@ export default function Home() {
         <div className="grid md:grid-cols-2 gap-4">
           <div className="rounded-2xl border p-5 bg-white">
             <div className="font-medium">Is this compliant?</div>
-            <p className="mt-2 text-sm text-gray-600">
-              We capture CIP/KYC basics and avoid SSNs by default. Add only what your compliance signs off on.
-            </p>
+            <p className="mt-2 text-sm text-gray-600">We capture CIP/KYC basics and avoid SSNs by default. Add only what your compliance signs off on.</p>
           </div>
           <div className="rounded-2xl border p-5 bg-white">
             <div className="font-medium">Can advisors share unique links?</div>
-            <p className="mt-2 text-sm text-gray-600">
-              Yes — each advisor has a tokenized URL. You can also tag links with <code>?contact=NAME</code> to attribute outreach.
-            </p>
+            <p className="mt-2 text-sm text-gray-600">Yes — each advisor has a tokenized URL. You can also tag links with <code>?contact=NAME</code> to attribute outreach.</p>
           </div>
           <div className="rounded-2xl border p-5 bg-white">
             <div className="font-medium">Where is data stored?</div>
