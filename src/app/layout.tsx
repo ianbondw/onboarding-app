@@ -1,7 +1,8 @@
 import "./globals.css";
 import React from "react";
 import Link from "next/link";
-import { Analytics } from "@vercel/analytics/react"; // ⬅️ add
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata = {
   title: "Client Onboarding",
@@ -45,7 +46,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </footer>
         </div>
 
-        <Analytics /> {/* ⬅️ add */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

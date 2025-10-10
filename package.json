@@ -12,16 +12,16 @@
     "url": "https://github.com/ianbondw/onboarding-app/issues"
   },
   "homepage": "https://github.com/ianbondw/onboarding-app#readme",
-"scripts": {
-  "dev": "next dev",
-  "build": "next build",
-  "start": "next start",
-  "lint": "next lint",
-  "prisma:studio": "prisma studio",
-  "prisma:deploy": "prisma migrate deploy",
-  "postinstall": "prisma generate",
-  "seed": "node prisma/seed.mjs",
-  "test": "echo \"Error: no test specified\" && exit 1"
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "prisma:studio": "prisma studio",
+    "prisma:deploy": "prisma migrate deploy",
+    "postinstall": "prisma generate",
+    "seed": "node prisma/seed.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "engines": {
     "node": ">=18 <=22"
@@ -30,6 +30,9 @@
     "@faker-js/faker": "^10.0.0",
     "@hookform/resolvers": "^5.2.1",
     "@prisma/client": "^6.16.2",
+    "@sentry/nextjs": "^10.19.0",
+    "@vercel/analytics": "^1.5.0",
+    "@vercel/speed-insights": "^1.2.0",
     "acorn": "^8.15.0",
     "acorn-jsx": "^5.3.2",
     "ajv": "^6.12.6",
