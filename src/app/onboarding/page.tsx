@@ -57,7 +57,7 @@ export default function OnboardingStartPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <label className="block text-sm">
             <span className="mb-1 inline-block text-slate-700">Contact tag (optional)</span>
-            <input className="input" value={contact} onChange={(e)=>setContact(e.target.value)} placeholder="brittany" />
+            <input className="input" value={contact} onChange={(e)=>setContact(e.target.value)} placeholder="Joe" />
           </label>
           <label className="block text-sm">
             <span className="mb-1 inline-block text-slate-700">Brand name (optional)</span>
