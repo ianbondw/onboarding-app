@@ -5,6 +5,16 @@ import { useParams } from "next/navigation";
 
 type Step = "basic" | "employment" | "wealth" | "suitability" | "kyc" | "review";
 
+// Human-friendly labels for the step chips (keys stay the same for your API/DB)
+const STEPS: { key: Step; label: string }[] = [
+  { key: "basic",       label: "About you" },
+  { key: "employment",  label: "Work & income" },
+  { key: "wealth",      label: "Assets & accounts" },
+  { key: "suitability", label: "Goals & risk" },
+  { key: "kyc",         label: "Identity verify" },
+  { key: "review",      label: "Review & submit" },
+];
+
 const incomeBands = ["<50k", "50-100k", "100-250k", "250-500k", "500k+"];
 const wealthBands  = ["<100k", "100-250k", "250-500k", "500k-1M", "1M+"];
 const riskOptions  = ["conservative", "moderate", "growth", "aggressive"];
@@ -28,10 +38,20 @@ export default function Wizard() {
   });
 
   function next() {
-    setStep(s => s==="basic"?"employment": s==="employment"?"wealth": s==="wealth"?"suitability": s==="suitability"?"kyc":"review");
+    setStep(s =>
+      s==="basic"?"employment":
+      s==="employment"?"wealth":
+      s==="wealth"?"suitability":
+      s==="suitability"?"kyc":"review"
+    );
   }
   function prev() {
-    setStep(s => s==="review"?"kyc": s==="kyc"?"suitability": s==="suitability"?"wealth": s==="wealth"?"employment":"basic");
+    setStep(s =>
+      s==="review"?"kyc":
+      s==="kyc"?"suitability":
+      s==="suitability"?"wealth":
+      s==="wealth"?"employment":"basic"
+    );
   }
 
   const canContinue = useMemo(() => {
@@ -41,7 +61,7 @@ export default function Wizard() {
     return true;
   }, [step, form]);
 
-  // ⬇️ updated: submit and show advisor recommendations from API response
+  // ⬇️ submit and show advisor recommendations from API response
   async function submit() {
     setLoading(true); setMsg(null);
     try {
@@ -79,10 +99,12 @@ export default function Wizard() {
       <div className="mx-auto max-w-3xl">
         {/* Stepper */}
         <div className="mb-6 flex flex-wrap gap-2 text-xs">
-          {(["basic","employment","wealth","suitability","kyc","review"] as Step[]).map((s) => (
-            <span key={s}
-              className={`rounded-full px-3 py-1 ${step===s ? "bg-slate-900 text-white" : "bg-white text-slate-700 border"}`}>
-              {s}
+          {STEPS.map(({ key, label }) => (
+            <span
+              key={key}
+              className={`rounded-full px-3 py-1 ${step===key ? "bg-slate-900 text-white" : "bg-white text-slate-700 border"}`}
+            >
+              {label}
             </span>
           ))}
         </div>
@@ -197,7 +219,7 @@ export default function Wizard() {
             )}
           </div>
 
-          {/* ⬇️ updated: render advisor suggestions nicely */}
+          {/* Advisor suggestions */}
           {msg && (
             <div className="mt-6 rounded-xl border bg-slate-50 p-4">
               {(() => {
