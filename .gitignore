@@ -92,40 +92,23 @@ dist
 .vuepress/dist
 
 # vuepress v2.x temp and cache directory
-.temp
+# Caches & tooling
 .cache
-
-# Sveltekit cache directory
 .svelte-kit/
-
-# vitepress build output
 **/.vitepress/dist
-
-# vitepress cache directory
 **/.vitepress/cache
-
-# Docusaurus cache and generated files
 .docusaurus
-
-# Serverless directories
 .serverless/
-
-# FuseBox cache
 .fusebox/
-
-# DynamoDB Local files
 .dynamodb/
-
-# Firebase cache directory
 .firebase/
-
-# TernJS port file
 .tern-port
-
-# Stores VSCode versions used for testing VSCode extensions
 .vscode-test
+.turbo/
+.pnpm-store/
+.eslintcache
 
-# yarn v3
+# Yarn v3
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -134,14 +117,28 @@ dist
 !.yarn/sdks
 !.yarn/versions
 
-# Vite logs files
+# Vite temp logs
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
-# dependencies
+
+# Node / Next builds
 node_modules/
-# next build
 .next/
-# env & local
+out/
+dist/
+.vercel/
+
+# Env & local secrets
 .env
-.env.local
+.env.*
+!.env.example
 .DS_Store
+
+# Logs
+npm-debug.log*
+yarn-*.log*
+pnpm-debug.log*
+
+# Prisma (local sqlite, if ever used)
+prisma/*.db
+prisma/*.db-journal
