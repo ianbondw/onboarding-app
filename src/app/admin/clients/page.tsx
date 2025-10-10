@@ -132,11 +132,26 @@ export default async function AdminClients(props: any) {
 
   return (
     <main className="mx-auto max-w-6xl p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">Client Submissions</h1>
-        <span className="text-sm text-gray-500">({totalClients} total)</span>
+      {/* Header row with Export */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold">Client Submissions</h1>
+          <span className="text-sm text-gray-500">({totalClients} total)</span>
+        </div>
+        <div className="ml-auto">
+          {/* Export CSV (advisor-scoped on server) */}
+          <a
+            href="/api/clients/export"
+            className="btn-secondary"
+            download
+            title="Download recent client submissions as CSV"
+          >
+            Export CSV
+          </a>
+        </div>
       </div>
 
+      {/* Search */}
       <form className="flex gap-2">
         <input
           className="input w-64"
@@ -147,11 +162,9 @@ export default async function AdminClients(props: any) {
         <button className="btn-secondary" type="submit">
           Search
         </button>
-        <Link className="btn-secondary" href="/admin/clients.csv">
-          Export CSV
-        </Link>
       </form>
 
+      {/* Analytics */}
       {!analyticsError && (
         <section className="grid gap-4 md:grid-cols-2">
           <Card title="Risk Mix (your clients)">
@@ -177,6 +190,7 @@ export default async function AdminClients(props: any) {
         </section>
       )}
 
+      {/* Table */}
       <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
@@ -222,6 +236,7 @@ export default async function AdminClients(props: any) {
         </table>
       </div>
 
+      {/* Pager */}
       <nav className="mt-2 flex items-center gap-2">
         <span className="text-sm text-gray-600">
           Page {page} of {totalPages}
