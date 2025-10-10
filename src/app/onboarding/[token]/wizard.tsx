@@ -61,7 +61,7 @@ export default function Wizard() {
     return true;
   }, [step, form]);
 
-  // ⬇️ submit and show advisor recommendations from API response
+  // submit and show advisor recommendations from API response
   async function submit() {
     setLoading(true); setMsg(null);
     try {
@@ -122,7 +122,16 @@ export default function Wizard() {
                 </Row>
                 <Row>
                   <Input label="Email" type="email" v={form.email} set={(v)=>setForm({...form, email:v})}/>
-                  <Input label="Phone" v={form.phone} set={(v)=>setForm({...form, phone:v})}/>
+                  {/* Phone: mobile-friendly keypad */}
+                  <Input
+                    label="Phone"
+                    type="tel"
+                    v={form.phone}
+                    set={(v)=>setForm({...form, phone:v})}
+                    // @ts-ignore
+                    inputMode="tel"
+                    autoComplete="tel"
+                  />
                 </Row>
                 <Row>
                   <Input label="Date of birth" type="date" v={form.dateOfBirth} set={(v)=>setForm({...form, dateOfBirth:v})}/>
@@ -182,7 +191,16 @@ export default function Wizard() {
                 <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-700">
                   <strong>Why we ask for SSN/ID:</strong> to verify identity and fulfill tax/reg obligations.
                 </div>
-                <Input label="SSN (9 digits)" placeholder="***-**-****" v={form.ssn} set={(v)=>setForm({...form, ssn:v})}/>
+                {/* SSN: numeric keypad, no autocomplete */}
+                <Input
+                  label="SSN (9 digits)"
+                  placeholder="***-**-****"
+                  v={form.ssn}
+                  set={(v)=>setForm({...form, ssn:v})}
+                  // @ts-ignore
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
                 <Select label="ID document type" v={form.idDocType} set={(v)=>setForm({...form, idDocType:v})} opts={["driver_license","passport","other"]}/>
                 <Input label="ID document URL (optional for demo)" v={form.idDocUrl} set={(v)=>setForm({...form, idDocUrl:v})}/>
                 <Input label="Proof of address URL (optional for demo)" v={form.proofOfAddressUrl} set={(v)=>setForm({...form, proofOfAddressUrl:v})}/>
@@ -204,19 +222,36 @@ export default function Wizard() {
           </div>
 
           {/* Actions */}
-          <div className="mt-6 flex items-center gap-3">
-            {step !== "basic" && <button onClick={prev} className="btn-secondary">Back</button>}
-            {step !== "review" && (
-              <button onClick={next} disabled={!canContinue}
-                className={`btn-primary ${!canContinue ? "opacity-60 cursor-not-allowed" : ""}`}>
-                Continue
-              </button>
-            )}
-            {step === "review" && (
-              <button onClick={submit} disabled={loading} className="btn-primary">
-                {loading ? "Submitting..." : "Submit"}
-              </button>
-            )}
+          <div className="mt-6">
+            {/* Desktop/tablet buttons */}
+            <div className="hidden sm:flex items-center gap-3">
+              {step !== "basic" && <button onClick={prev} className="btn-secondary">Back</button>}
+              {step !== "review" ? (
+                <button onClick={next} disabled={!canContinue}
+                  className={`btn-primary ${!canContinue ? "opacity-60 cursor-not-allowed" : ""}`}>
+                  Continue
+                </button>
+              ) : (
+                <button onClick={submit} disabled={loading} className="btn-primary">
+                  {loading ? "Submitting..." : "Submit"}
+                </button>
+              )}
+            </div>
+
+            {/* Mobile sticky bar */}
+            <div className="sm:hidden sticky-actions">
+              {step !== "basic" && <button onClick={prev} className="btn-secondary w-full">Back</button>}
+              {step !== "review" ? (
+                <button onClick={next} disabled={!canContinue}
+                  className={`btn-primary w-full ${!canContinue ? "opacity-60 cursor-not-allowed" : ""}`}>
+                  Continue
+                </button>
+              ) : (
+                <button onClick={submit} disabled={loading} className="btn-primary w-full">
+                  {loading ? "Submitting..." : "Submit"}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Advisor suggestions */}
@@ -258,16 +293,26 @@ export default function Wizard() {
 function Row({ children }: { children: React.ReactNode }) {
   return <div className="grid gap-4 md:grid-cols-2">{children}</div>;
 }
-function Input({ label, v, set, type="text", placeholder }:{
+
+function Input({ label, v, set, type="text", placeholder, ...rest }:{
   label:string; v:string; set:(s:string)=>void; type?:string; placeholder?:string;
+  [key:string]: any;
 }) {
   return (
     <label className="block text-sm">
       <span className="mb-1 inline-block text-slate-700">{label}</span>
-      <input className="input" type={type} value={v} placeholder={placeholder} onChange={(e)=>set(e.target.value)} />
+      <input
+        className="input"
+        type={type}
+        value={v}
+        placeholder={placeholder}
+        onChange={(e)=>set(e.target.value)}
+        {...rest}
+      />
     </label>
   );
 }
+
 function Select({ label, v, set, opts }:{
   label:string; v:string; set:(s:string)=>void; opts:string[];
 }) {
@@ -281,6 +326,7 @@ function Select({ label, v, set, opts }:{
     </label>
   );
 }
+
 function Check({ label, c, set }:{ label:string; c:boolean; set:(b:boolean)=>void }) {
   return (
     <label className="inline-flex items-center gap-2 text-sm">
@@ -289,6 +335,7 @@ function Check({ label, c, set }:{ label:string; c:boolean; set:(b:boolean)=>voi
     </label>
   );
 }
+
 function Multi({ label, arr, setArr, opts }:{
   label:string; arr:string[]; setArr:(v:string[])=>void; opts:string[];
 }) {
