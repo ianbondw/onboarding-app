@@ -3,11 +3,15 @@ import AdminLoginClient from "./LoginClient";
 
 export const dynamic = "force-dynamic";
 
-export default function AdminLoginPage({
+export default async function AdminLoginPage({
   searchParams,
 }: {
-  searchParams?: { next?: string };
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const next = searchParams?.next || "/admin/clients";
+  const sp = (await searchParams) || {};
+  const rawNext = sp.next;
+  const next =
+    (Array.isArray(rawNext) ? rawNext[0] : rawNext) || "/admin/clients";
+
   return <AdminLoginClient next={next} />;
 }
