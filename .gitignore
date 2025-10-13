@@ -141,4 +141,5 @@ pnpm-debug.log*
 
 # Prisma (local sqlite, if ever used)
 prisma/*.db
-prisma/*.db-journal
+prisma/*.db-journal.env*
+!.env.example
