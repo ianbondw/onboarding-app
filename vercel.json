@@ -1,0 +1,16 @@
+{
+    "redirects": [
+      {
+        "source": "/",
+        "has": [{ "type": "host", "value": "marengofinance-app.com" }],
+        "destination": "/onboarding",
+        "permanent": true
+      },
+      {
+        "source": "/",
+        "has": [{ "type": "host", "value": "marengofinance-admin.com" }],
+        "destination": "/admin/clients",
+        "permanent": true
+      }
+    ]
+  }
