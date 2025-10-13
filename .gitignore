@@ -143,3 +143,5 @@ pnpm-debug.log*
 prisma/*.db
 prisma/*.db-journal.env*
 !.env.example
+.env*
+!.env.example
