@@ -1,44 +1,44 @@
 // src/middleware.ts
 import { NextResponse, NextRequest } from "next/server";
 
-// Use a plain constant so middleware doesn't import any Node-only modules.
-const ADMIN_COOKIE = "advisor_admin";
+// Support both the new and old cookie names
+const ADMIN_COOKIE_NAMES = ["admin_token", "advisor_admin"];
 
 export function middleware(req: NextRequest) {
-  const { pathname, searchParams } = req.nextUrl;
+  const { pathname, search } = req.nextUrl;
 
-  // Only apply to /admin
-  if (!pathname.startsWith("/admin")) {
-    return NextResponse.next();
+  // Only guard /admin pages and /api/admin endpoints
+  const isAdminPath = pathname.startsWith("/admin");
+  const isAdminApi = pathname.startsWith("/api/admin");
+  if (!isAdminPath && !isAdminApi) return NextResponse.next();
+
+  // Always allow the login page and login/logout API
+  const isAllowedPublic =
+    pathname.startsWith("/admin/login") ||
+    pathname.startsWith("/api/admin/login") ||
+    pathname.startsWith("/api/admin/logout");
+
+  if (isAllowedPublic) return NextResponse.next();
+
+  // If we already have an admin cookie, proceed
+  const hasToken = ADMIN_COOKIE_NAMES.some((n) => !!req.cookies.get(n)?.value);
+  if (hasToken) return NextResponse.next();
+
+  // No token: for API => 401 JSON; for pages => redirect to /admin/login?next=...
+  if (isAdminApi) {
+    return NextResponse.json(
+      { error: "Unauthorized: missing or invalid admin token." },
+      { status: 401 }
+    );
   }
 
-  // If cookie already present, proceed
-  const cookie = req.cookies.get(ADMIN_COOKIE)?.value;
-  if (cookie) return NextResponse.next();
-
-  // If ?admin_token=... present, set cookie and redirect to clean URL
-  const urlToken = searchParams.get("admin_token");
-  if (urlToken) {
-    const cleanUrl = new URL(req.url);
-    cleanUrl.searchParams.delete("admin_token");
-
-    const res = NextResponse.redirect(cleanUrl);
-    res.cookies.set({
-      name: ADMIN_COOKIE,
-      value: urlToken,
-      httpOnly: true,
-      sameSite: "lax",
-      secure: true,
-      path: "/",
-      maxAge: 60 * 60 * 24 * 180, // 180 days
-    });
-    return res;
-  }
-
-  // Otherwise block
-  return new NextResponse("Unauthorized: missing or invalid admin token.", { status: 401 });
+  const url = req.nextUrl.clone();
+  url.pathname = "/admin/login";
+  url.search = `?next=${encodeURIComponent(pathname + (search || ""))}`;
+  return NextResponse.redirect(url);
 }
 
+// Limit the middleware to just these routes
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/api/admin/:path*"],
 };

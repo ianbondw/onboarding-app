@@ -3,6 +3,38 @@ export const runtime = "nodejs"; // Prisma needs Node runtime on Vercel
 
 import { NextResponse, NextRequest } from "next/server";
 
+/* ------------------------- Rate limiter (in-memory) ------------------------- */
+const RATE_BUCKETS = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 8;          // 8 requests
+const RATE_WINDOW_MS = 60_000; // per 60s window
+
+function keyFor(req: Request, token: string) {
+  const ip =
+    (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown";
+  return `${ip}::${token}`;
+}
+
+function rateLimitOrThrow(req: Request, token: string) {
+  const k = keyFor(req, token);
+  const now = Date.now();
+  const b = RATE_BUCKETS.get(k);
+  if (!b || now > b.resetAt) {
+    RATE_BUCKETS.set(k, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return;
+  }
+  if (b.count >= RATE_LIMIT) {
+    const retryAfter = Math.max(0, Math.ceil((b.resetAt - now) / 1000));
+    const err: any = new Error("Too many requests. Please wait a bit and try again.");
+    err.status = 429;
+    (err as any).headers = { "Retry-After": String(retryAfter) };
+    throw err;
+  }
+  b.count += 1;
+}
+/* --------------------------------------------------------------------------- */
+
 // Lazy import Prisma (same pattern you use elsewhere)
 async function getPrisma() {
   const { PrismaClient } = await import("@prisma/client");
@@ -106,6 +138,10 @@ function matchProducts(input: {
 export async function POST(req: NextRequest, context: any) {
   try {
     const { token } = context.params as { token: string };
+
+    // ✅ Apply rate limit BEFORE doing any work
+    rateLimitOrThrow(req, token);
+
     const body = await req.json();
 
     const {
@@ -174,8 +210,13 @@ export async function POST(req: NextRequest, context: any) {
     }
 
     return NextResponse.json({ ok: true, token, clientId: client.id, recommendations: recs });
-  } catch (err: any) {
-    console.error(err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  } catch (e: any) {
+    const status = e?.status || 500;
+    const extraHeaders = e?.headers || {};
+    console.error(e);
+    return new NextResponse(JSON.stringify({ error: e?.message || "Server error" }), {
+      status,
+      headers: { "Content-Type": "application/json", ...extraHeaders },
+    });
   }
 }

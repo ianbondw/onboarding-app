@@ -1,31 +1,29 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+"use client";
 
-export const dynamic = "force-dynamic";
+import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 
-export default async function AdminLogin(props: any) {
-  const sp = props?.searchParams ?? {};
-  const next = sp?.next ?? "/admin/clients";
-  const showError = Boolean(sp?.err);
+export default function AdminLoginPage() {
+  const sp = useSearchParams();
+  const next = sp.get("next") || "/admin/clients";
 
-  // Server Action: must return void | Promise<void>
-  async function action(formData: FormData) {
-    "use server";
-    const pass = formData.get("password")?.toString() ?? "";
+  const [password, setPassword] = useState("");
+  const [err, setErr] = useState("");
 
-    if (pass && process.env.ADMIN_PASS && pass === process.env.ADMIN_PASS) {
-      const jar = await cookies();
-      jar.set("admin", pass, {
-        httpOnly: false,
-        sameSite: "lax",
-        path: "/",
-        secure: true,
-        maxAge: 60 * 60 * 24 * 30,
-      });
-      redirect(next);
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr("");
+    const res = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    if (res.ok) {
+      window.location.href = next;
+    } else {
+      const j = await res.json().catch(() => ({}));
+      setErr(j?.error || "Invalid password");
     }
-
-    redirect(`/admin/login?err=1&next=${encodeURIComponent(next)}`);
   }
 
   return (
@@ -34,19 +32,22 @@ export default async function AdminLogin(props: any) {
         <h1 className="text-2xl font-semibold mb-2">Admin Login</h1>
         <p className="text-sm text-gray-500 mb-4">Protected area — for your eyes only.</p>
 
-        {showError ? (
+        {err ? (
           <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            Invalid password. Try again.
+            {err}
           </div>
         ) : null}
 
-        <form action={action} className="space-y-3">
+        <form onSubmit={onSubmit} className="space-y-3">
           <input
             type="password"
             name="password"
-            placeholder="Password"
+            placeholder="Admin password"
             className="border rounded-md px-3 py-2 w-full outline-none focus:ring-2 focus:ring-black/10"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             required
+            autoFocus
           />
           <button
             className="rounded-md px-3 py-2 w-full bg-black text-white hover:bg-black/90 transition"

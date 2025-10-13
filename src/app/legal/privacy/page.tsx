@@ -1,27 +1,28 @@
-export default function Privacy() {
+export default function PrivacyPage() {
     return (
-      <main className="mx-auto max-w-3xl rounded-2xl border bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold">Privacy Policy</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          We collect only what’s necessary to power client onboarding and advisor analytics.
-        </p>
-        <div className="prose prose-slate mt-6">
-          <h3>What we collect</h3>
-          <ul>
-            <li>Client intake form responses (as entered by the client)</li>
-            <li>Minimal metadata (timestamps, advisor attribution)</li>
-          </ul>
-          <h3>What we avoid</h3>
-          <ul>
-            <li>No SSNs by default in demo environments</li>
-            <li>No selling of any data, ever</li>
-          </ul>
-          <h3>Storage & security</h3>
-          <p>Data is stored in Neon Postgres with backups. Access is scoped per advisor via JWT + HttpOnly cookies.</p>
-          <h3>Contact</h3>
-          <p>Questions? Email <a href="mailto:privacy@advisoronboarding.app">privacy@advisoronboarding.app</a>.</p>
-          <p className="text-xs text-slate-500 mt-6">Last updated: {new Date().toLocaleDateString()}</p>
-        </div>
+      <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+        <section className="container mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 space-y-6">
+          <h1 className="text-3xl font-bold tracking-tight">Privacy Policy</h1>
+          <p className="text-gray-600">Last updated: {new Date().toLocaleDateString()}</p>
+          <div className="prose prose-slate max-w-none">
+            <p>We collect only the information necessary to deliver a compliant onboarding experience.</p>
+            <h3>Data we collect</h3>
+            <ul>
+              <li>Client intake fields submitted via the onboarding flow</li>
+              <li>Advisor-scoped analytics (counts, completion, goal/risk distribution)</li>
+            </ul>
+            <h3>Where data is stored</h3>
+            <p>Neon Postgres (U.S.). Point-in-time restore enabled. Backed up regularly.</p>
+            <h3>Security</h3>
+            <ul>
+              <li>Scoped JWT + HttpOnly cookies</li>
+              <li>Transport encryption (HTTPS/TLS)</li>
+              <li>Optional AES-256-GCM for sensitive fields (e.g., SSN)</li>
+            </ul>
+            <h3>Your rights</h3>
+            <p>Contact us to access, correct, or delete your data: <a className="underline" href="mailto:privacy@advisoronboarding.app">privacy@advisoronboarding.app</a></p>
+          </div>
+        </section>
       </main>
     );
   }
