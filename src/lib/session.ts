@@ -1,12 +1,13 @@
 // src/lib/session.ts
 import { cookies } from "next/headers";
-import { verifyAdvisorToken } from "./jwt";
 
-export const ADMIN_COOKIE = "advisor_admin";
+export const ADVISOR_COOKIE = "advisor_admin";
 
+/**
+ * Returns the advisorId from the advisor cookie, or null if not present.
+ * Note: advisor_admin cookie now stores the advisorId directly (set by /api/admin/accept).
+ */
 export async function getAdvisorIdFromCookie(): Promise<string | null> {
-  const c = (await cookies()).get(ADMIN_COOKIE)?.value;
-  if (!c) return null;
-  const payload = verifyAdvisorToken(c); // { advisorId: string } | null
-  return payload?.advisorId ?? null;
+  const jar = await cookies();
+  return jar.get(ADVISOR_COOKIE)?.value ?? null;
 }
