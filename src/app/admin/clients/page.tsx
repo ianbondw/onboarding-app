@@ -1,8 +1,9 @@
 // src/app/admin/clients/page.tsx
 import Link from "next/link";
+import { cookies as cookieStore } from "next/headers";
 import { prisma } from "../../../prisma";
 import { getAdvisorIdFromCookie } from "../../../lib/session";
-import SentryInit from "./SentryInit"; // ✅ added
+import SentryInit from "./SentryInit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,16 +13,23 @@ function toLower(s: unknown) {
 }
 
 export default async function AdminClients(props: any) {
+  // Advisor cookie (existing behavior)
   const advisorId = await getAdvisorIdFromCookie();
-  if (!advisorId) {
+
+  // Owner cookie (set by /api/admin/login after entering ADMIN_PASS)
+  const hasOwnerCookie = Boolean(cookieStore().get("admin_token")?.value);
+  const ownerMode = hasOwnerCookie && !advisorId; // owner without advisor scope
+
+  if (!advisorId && !ownerMode) {
+    // No owner or advisor cookie -> still unauthorized
     return (
       <main className="mx-auto max-w-3xl p-6 space-y-4">
         <h1 className="text-2xl font-semibold text-red-700">
           Unauthorized: missing or invalid admin token.
         </h1>
         <p className="text-sm text-gray-600">
-          Access this page using your personalized admin link containing{" "}
-          <code>?admin_token=...</code>.
+          Sign in at <code>/admin/login</code> (owner), or use your personalized link containing{" "}
+          <code>?admin_token=...</code> (advisor).
         </p>
       </main>
     );
@@ -34,11 +42,11 @@ export default async function AdminClients(props: any) {
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q)?.toString().trim() ?? "";
   const hasQ = q.length > 0;
 
-  // ✅ optional firm filter (used for Sentry tagging + potential rollups)
+  // Optional firm filter from query: /admin/clients?firm=abc
   const firmRaw = Array.isArray(searchParams.firm) ? searchParams.firm[0] : searchParams.firm;
   const firmCode: string | undefined = firmRaw ? String(firmRaw) : undefined;
 
-  // ---------- Analytics (advisor scoped) ----------
+  // ---------- Analytics ----------
   let totalClients = 0;
   let last7d = 0;
   let riskMix: Record<string, number> = {};
@@ -46,14 +54,23 @@ export default async function AdminClients(props: any) {
   let analyticsError: string | null = null;
 
   try {
-    totalClients = await prisma.client.count({ where: { advisorId } });
+    const baseWhere: any = ownerMode ? {} : { advisorId };
+
+    // Optional firm filter (owner mode only makes sense if you store advisor.firm)
+    // If you later add firm relationships, you can join via where: { advisor: { firm: firmCode } }
+    if (!ownerMode) {
+      // advisor-only view already scoped by advisorId
+    }
+
+    totalClients = await prisma.client.count({ where: baseWhere });
+
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     last7d = await prisma.client.count({
-      where: { advisorId, createdAt: { gte: sevenDaysAgo } },
+      where: { ...baseWhere, createdAt: { gte: sevenDaysAgo } },
     });
 
     const recent = await prisma.client.findMany({
-      where: { advisorId },
+      where: baseWhere,
       orderBy: { createdAt: "desc" },
       take: 5000,
       select: { riskTolerance: true, primaryGoals: true },
@@ -85,12 +102,15 @@ export default async function AdminClients(props: any) {
     riskTolerance: true,
     timeHorizon: true,
     primaryGoals: true,
+    advisorId: true,
   } as const;
 
   try {
+    const baseWhere: any = ownerMode ? {} : { advisorId };
+
     if (hasQ) {
       const all = await prisma.client.findMany({
-        where: { advisorId },
+        where: baseWhere,
         orderBy: { createdAt: "desc" },
         select: SELECT_FIELDS,
       });
@@ -103,9 +123,9 @@ export default async function AdminClients(props: any) {
       total = filtered.length;
       rows = filtered.slice(PAGE_SKIP, PAGE_SKIP + PAGE_SIZE);
     } else {
-      total = await prisma.client.count({ where: { advisorId } });
+      total = await prisma.client.count({ where: baseWhere });
       rows = await prisma.client.findMany({
-        where: { advisorId },
+        where: baseWhere,
         orderBy: { createdAt: "desc" },
         skip: PAGE_SKIP,
         take: PAGE_SIZE,
@@ -137,18 +157,19 @@ export default async function AdminClients(props: any) {
 
   return (
     <>
-      {/* ✅ Sentry tagging for this session (no UI impact) */}
-      <SentryInit firmCode={firmCode} advisorId={advisorId} />
+      {/* Sentry tagging (owner -> advisorId undefined) */}
+      <SentryInit firmCode={firmCode} advisorId={advisorId ?? undefined} />
 
       <main className="mx-auto max-w-6xl p-6 space-y-6">
-        {/* Header row with Export */}
+        {/* Header row */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold">Client Submissions</h1>
+            <h1 className="text-2xl font-semibold">
+              Client Submissions {ownerMode ? "(All Advisors)" : ""}
+            </h1>
             <span className="text-sm text-gray-500">({totalClients} total)</span>
           </div>
           <div className="ml-auto">
-            {/* Export CSV (advisor-scoped on server) */}
             <a
               href="/api/clients/export"
               className="btn-secondary"
@@ -176,7 +197,7 @@ export default async function AdminClients(props: any) {
         {/* Analytics */}
         {!analyticsError && (
           <section className="grid gap-4 md:grid-cols-2">
-            <Card title="Risk Mix (your clients)">
+            <Card title={`Risk Mix ${ownerMode ? "(all advisors)" : "(your clients)"}`}>
               <div className="space-y-2">
                 {riskEntries.length === 0 && (
                   <p className="text-sm text-slate-600">No data.</p>
@@ -186,7 +207,7 @@ export default async function AdminClients(props: any) {
                 ))}
               </div>
             </Card>
-            <Card title="Top Goals (your clients)">
+            <Card title={`Top Goals ${ownerMode ? "(all advisors)" : "(your clients)"}`}>
               <div className="space-y-2">
                 {goalEntries.length === 0 && (
                   <p className="text-sm text-slate-600">No data.</p>
