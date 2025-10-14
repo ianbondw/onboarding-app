@@ -1,97 +1,119 @@
-// src/app/admin/new-advisor/page.tsx
 "use client";
 
 import { useState } from "react";
 
-const APP = process.env.NEXT_PUBLIC_APP_ORIGIN || "https://marengofinance-app.com";
-const ADMIN = process.env.NEXT_PUBLIC_ADMIN_ORIGIN || "https://marengofinance-admin.com";
-
 export default function NewAdvisorPage() {
   const [name, setName] = useState("");
-  const [firmCode, setFirmCode] = useState("");
-  const [advisorId, setAdvisorId] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [err, setErr] = useState("");
+  const [firm, setFirm] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [links, setLinks] = useState<{ onboardingUrl: string; adminUrl: string } | null>(null);
 
-  async function onCreate(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setErr("");
-    setAdvisorId(null);
-    setToken(null);
+    setError(null);
+    setLinks(null);
 
+    const cleanName = name.trim();
+    const cleanFirm = firm.trim();
+
+    if (!cleanName) {
+      setError("Please enter an advisor name.");
+      return;
+    }
+
+    setLoading(true);
     try {
       const res = await fetch("/api/advisors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, firmCode }),
+        cache: "no-store",
+        body: JSON.stringify({ name: cleanName, firm: cleanFirm || undefined }),
       });
+
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j?.error || `HTTP ${res.status}`);
+        // 405 if you try to open route in browser (GET), 409 on slug conflict, 500 on env/DB issues
+        setError(json?.error || `Request failed (${res.status})`);
+        return;
       }
-      const j = await res.json();
-      // EXPECTED RESPONSE SHAPE:
-      // { advisorId: "adv_123", token: "onb_abc123" }
-      setAdvisorId(j.advisorId);
-      setToken(j.token);
-    } catch (e: any) {
-      setErr(e?.message || "Failed to create advisor");
+
+      const onboardingUrl = json?.links?.onboardingUrl as string | undefined;
+      const adminUrl = json?.links?.adminUrl as string | undefined;
+      if (!onboardingUrl || !adminUrl) {
+        setError("Server response missing links.");
+        return;
+      }
+
+      setLinks({ onboardingUrl, adminUrl });
+    } catch (err: any) {
+      setError(err?.message || "Network error");
+    } finally {
+      setLoading(false);
     }
   }
 
-  const onboardingUrl = token ? `${APP}/onboarding/${encodeURIComponent(token)}` : "";
-  const adminUrl =
-    advisorId ? `${ADMIN}/admin/clients?admin_token=${encodeURIComponent(advisorId)}` : "";
-
   return (
-    <main className="mx-auto max-w-2xl p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Create Demo Advisor</h1>
+    <main className="mx-auto max-w-2xl p-6">
+      <h1 className="text-2xl font-semibold mb-4">Create Demo Advisor</h1>
 
-      {err && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {err}
+      {error ? (
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
         </div>
-      )}
+      ) : null}
 
-      <form onSubmit={onCreate} className="grid gap-3">
+      <form onSubmit={onSubmit} className="space-y-3">
         <input
-          className="border rounded px-3 py-2"
-          placeholder="Advisor name"
+          className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+          placeholder="Advisor name (e.g., Jacky Johnson)"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          required
+          disabled={loading}
         />
         <input
-          className="border rounded px-3 py-2"
-          placeholder="Firm code (e.g. UBS)"
-          value={firmCode}
-          onChange={(e) => setFirmCode(e.target.value)}
+          className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+          placeholder="Firm (optional)"
+          value={firm}
+          onChange={(e) => setFirm(e.target.value)}
+          disabled={loading}
         />
-        <button className="rounded bg-black text-white px-4 py-2">Create</button>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className={`w-full rounded-md px-3 py-2 text-white transition ${
+            loading ? "bg-black/60 cursor-not-allowed" : "bg-black hover:bg-black/90"
+          }`}
+        >
+          {loading ? "Creating…" : "Create"}
+        </button>
       </form>
 
-      {(advisorId || token) && (
-        <div className="rounded-2xl border bg-white p-4 shadow-sm space-y-3">
+      {links && (
+        <div className="mt-6 rounded-2xl border bg-white p-4 shadow-sm space-y-3">
           <div>
-            <div className="text-sm font-medium">Onboarding link (share with clients)</div>
-            {token ? (
-              <a href={onboardingUrl} className="text-blue-600 underline break-all">
-                {onboardingUrl}
-              </a>
-            ) : (
-              <p className="text-sm text-gray-500">No token returned.</p>
-            )}
+            <div className="text-sm font-medium text-slate-900">Onboarding link:</div>
+            <a
+              href={links.onboardingUrl}
+              className="text-sm text-blue-600 break-all underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {links.onboardingUrl}
+            </a>
           </div>
 
           <div>
-            <div className="text-sm font-medium">Admin link (send to this advisor once)</div>
-            {advisorId ? (
-              <a href={adminUrl} className="text-blue-600 underline break-all">
-                {adminUrl}
-              </a>
-            ) : (
-              <p className="text-sm text-gray-500">No advisorId returned.</p>
-            )}
+            <div className="text-sm font-medium text-slate-900">Advisor dashboard link:</div>
+            <a
+              href={links.adminUrl}
+              className="text-sm text-blue-600 break-all underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {links.adminUrl}
+            </a>
           </div>
         </div>
       )}
