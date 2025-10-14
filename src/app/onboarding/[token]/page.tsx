@@ -1,27 +1,24 @@
 // src/app/onboarding/[token]/page.tsx
 import Wizard from "./wizard";
 
-export default function TokenOnboardingPage({
-  params,
-  searchParams,
-}: {
-  params: { token: string };
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
-  const token = params.token;
+export default async function TokenOnboardingPage(props: any) {
+  const params = await props.params;           // Next 15: may be a Promise
+  const searchParams = (await props.searchParams) || {};
+
+  const token: string = params?.token;
 
   const brandName =
-    (typeof searchParams?.brandName === "string"
-      ? searchParams?.brandName
-      : Array.isArray(searchParams?.brandName)
-      ? searchParams?.brandName[0]
+    (typeof searchParams.brandName === "string"
+      ? searchParams.brandName
+      : Array.isArray(searchParams.brandName)
+      ? searchParams.brandName[0]
       : null) || "Your firm";
 
   const brandLogo =
-    typeof searchParams?.brandLogo === "string"
-      ? searchParams?.brandLogo
-      : Array.isArray(searchParams?.brandLogo)
-      ? searchParams?.brandLogo[0]
+    typeof searchParams.brandLogo === "string"
+      ? searchParams.brandLogo
+      : Array.isArray(searchParams.brandLogo)
+      ? searchParams.brandLogo[0]
       : undefined;
 
   return (
