@@ -2,6 +2,7 @@
 export const runtime = "nodejs"; // Prisma needs Node runtime on Vercel
 
 import { NextResponse, NextRequest } from "next/server";
+import { setSentryTagsServer } from "@/lib/sentry-tags";
 
 /* ------------------------- Rate limiter (in-memory) ------------------------- */
 const RATE_BUCKETS = new Map<string, { count: number; resetAt: number }>();
@@ -134,13 +135,31 @@ function matchProducts(input: {
   return recs;
 }
 
-// ⚠️ IMPORTANT: leave the 2nd arg untyped so Next.js validator is happy.
+// ⚠️ Keep 2nd arg loose so Next.js validator is happy.
 export async function POST(req: NextRequest, context: any) {
   try {
     const { token } = context.params as { token: string };
+    if (!token) {
+      return NextResponse.json({ error: "Missing token" }, { status: 400 });
+    }
 
-    // ✅ Apply rate limit BEFORE doing any work
+    // Rate limit first
     rateLimitOrThrow(req, token);
+
+    const prisma = await getPrisma();
+
+    // ✅ Look up the advisor behind this intake token
+    const intake = await prisma.intakeLink.findUnique({
+      where: { token },
+      select: { advisorId: true },
+    });
+    if (!intake?.advisorId) {
+      return NextResponse.json({ error: "Invalid or expired token" }, { status: 400 });
+    }
+    const advisorId = intake.advisorId;
+
+    // Sentry tagging so you can trace issues by advisor/token
+    setSentryTagsServer({ advisorId, firmCode: null, clientId: token });
 
     const body = await req.json();
 
@@ -157,13 +176,14 @@ export async function POST(req: NextRequest, context: any) {
       return NextResponse.json({ error: "Missing required fields (firstName, lastName, email)" }, { status: 400 });
     }
 
-    const prisma = await getPrisma();
-
     const enc = await encryptPII(ssn);
     const consentAcceptedAt = consentAccepted ? new Date() : null;
 
+    // 🔗 Save the client **scoped to this advisor**
     const client = await prisma.client.create({
       data: {
+        advisorId, // <-- critical: link submission to advisor behind the token
+
         firstName, lastName, email, phone,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         addressLine1, addressLine2, city, state, postalCode, country, citizenship,
@@ -209,7 +229,7 @@ export async function POST(req: NextRequest, context: any) {
       });
     }
 
-    return NextResponse.json({ ok: true, token, clientId: client.id, recommendations: recs });
+    return NextResponse.json({ ok: true, token, advisorId, clientId: client.id, recommendations: recs }, { status: 201 });
   } catch (e: any) {
     const status = e?.status || 500;
     const extraHeaders = e?.headers || {};
