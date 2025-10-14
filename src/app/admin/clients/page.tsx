@@ -1,8 +1,8 @@
 // src/app/admin/clients/page.tsx
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { prisma } from "../../../prisma";              // ✅ keep your current helper
-import { getAdvisorIdFromCookie } from "../../../lib/session"; // ✅ your current path
+import { prisma } from "../../../prisma";
+import { getAdvisorIdFromCookie } from "../../../lib/session";
 import SentryInit from "./SentryInit";
 
 export const runtime = "nodejs";
@@ -13,16 +13,16 @@ function toLower(s: unknown) {
 }
 
 export default async function AdminClients(props: any) {
-  // Read cookies (sync)
-  const jar = cookies();
+  // Read cookies (your project types treat this as async)
+  const jar = await cookies();
 
-  // You were checking "admin_token" here; leaving as-is to match your current login/cookie logic.
+  // Owner cookie (leave as-is to match your current login/cookie logic)
   const ownerCookie = Boolean(jar.get("admin_token")?.value);
 
-  // Advisor cookie (JWT) → middleware writes from ?admin_token=...
+  // Advisor cookie (JWT) from middleware (?admin_token=...)
   const advisorId = (await getAdvisorIdFromCookie()) || undefined;
 
-  // 🔒 Rule: if advisor cookie exists → ALWAYS scope to advisor (even if owner cookie also exists)
+  // 🔒 If advisor cookie exists → ALWAYS scope to advisor (even if owner cookie also exists)
   const ownerMode = !advisorId && ownerCookie;
 
   if (!advisorId && !ownerMode) {
