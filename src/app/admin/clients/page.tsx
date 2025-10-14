@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { prisma } from "../../../prisma";
 import { getAdvisorIdFromCookie } from "../../../lib/session";
+import SentryInit from "./SentryInit"; // ✅ added
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,10 @@ export default async function AdminClients(props: any) {
   const page = Number.isFinite(Number(pageRaw)) && Number(pageRaw) > 0 ? Number(pageRaw) : 1;
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q)?.toString().trim() ?? "";
   const hasQ = q.length > 0;
+
+  // ✅ optional firm filter (used for Sentry tagging + potential rollups)
+  const firmRaw = Array.isArray(searchParams.firm) ? searchParams.firm[0] : searchParams.firm;
+  const firmCode: string | undefined = firmRaw ? String(firmRaw) : undefined;
 
   // ---------- Analytics (advisor scoped) ----------
   let totalClients = 0;
@@ -131,136 +136,141 @@ export default async function AdminClients(props: any) {
   const goalMax = Math.max(1, ...goalEntries.map(([, v]) => v));
 
   return (
-    <main className="mx-auto max-w-6xl p-6 space-y-6">
-      {/* Header row with Export */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">Client Submissions</h1>
-          <span className="text-sm text-gray-500">({totalClients} total)</span>
+    <>
+      {/* ✅ Sentry tagging for this session (no UI impact) */}
+      <SentryInit firmCode={firmCode} advisorId={advisorId} />
+
+      <main className="mx-auto max-w-6xl p-6 space-y-6">
+        {/* Header row with Export */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold">Client Submissions</h1>
+            <span className="text-sm text-gray-500">({totalClients} total)</span>
+          </div>
+          <div className="ml-auto">
+            {/* Export CSV (advisor-scoped on server) */}
+            <a
+              href="/api/clients/export"
+              className="btn-secondary"
+              download
+              title="Download recent client submissions as CSV"
+            >
+              Export CSV
+            </a>
+          </div>
         </div>
-        <div className="ml-auto">
-          {/* Export CSV (advisor-scoped on server) */}
-          <a
-            href="/api/clients/export"
-            className="btn-secondary"
-            download
-            title="Download recent client submissions as CSV"
-          >
-            Export CSV
-          </a>
-        </div>
-      </div>
 
-      {/* Search */}
-      <form className="flex gap-2">
-        <input
-          className="input w-64"
-          name="q"
-          placeholder="Search name or email…"
-          defaultValue={q}
-        />
-        <button className="btn-secondary" type="submit">
-          Search
-        </button>
-      </form>
+        {/* Search */}
+        <form className="flex gap-2">
+          <input
+            className="input w-64"
+            name="q"
+            placeholder="Search name or email…"
+            defaultValue={q}
+          />
+          <button className="btn-secondary" type="submit">
+            Search
+          </button>
+        </form>
 
-      {/* Analytics */}
-      {!analyticsError && (
-        <section className="grid gap-4 md:grid-cols-2">
-          <Card title="Risk Mix (your clients)">
-            <div className="space-y-2">
-              {riskEntries.length === 0 && (
-                <p className="text-sm text-slate-600">No data.</p>
-              )}
-              {riskEntries.map(([key, count]) => (
-                <Bar key={key} label={key} count={count} max={riskMax} />
-              ))}
-            </div>
-          </Card>
-          <Card title="Top Goals (your clients)">
-            <div className="space-y-2">
-              {goalEntries.length === 0 && (
-                <p className="text-sm text-slate-600">No data.</p>
-              )}
-              {goalEntries.map(([key, count]) => (
-                <Bar key={key} label={key} count={count} max={goalMax} />
-              ))}
-            </div>
-          </Card>
-        </section>
-      )}
+        {/* Analytics */}
+        {!analyticsError && (
+          <section className="grid gap-4 md:grid-cols-2">
+            <Card title="Risk Mix (your clients)">
+              <div className="space-y-2">
+                {riskEntries.length === 0 && (
+                  <p className="text-sm text-slate-600">No data.</p>
+                )}
+                {riskEntries.map(([key, count]) => (
+                  <Bar key={key} label={key} count={count} max={riskMax} />
+                ))}
+              </div>
+            </Card>
+            <Card title="Top Goals (your clients)">
+              <div className="space-y-2">
+                {goalEntries.length === 0 && (
+                  <p className="text-sm text-slate-600">No data.</p>
+                )}
+                {goalEntries.map(([key, count]) => (
+                  <Bar key={key} label={key} count={count} max={goalMax} />
+                ))}
+              </div>
+            </Card>
+          </section>
+        )}
 
-      {/* Table */}
-      <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr className="text-gray-700">
-              <th className="text-left p-2">Created</th>
-              <th className="text-left p-2">Name</th>
-              <th className="text-left p-2">Email</th>
-              <th className="text-left p-2">Risk</th>
-              <th className="text-left p-2">Goals</th>
-              <th className="text-left p-2">ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const created = r?.createdAt
-                ? new Date(r.createdAt).toLocaleString()
-                : "";
-              const name = `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "(unnamed)";
-              const goals =
-                Array.isArray(r.primaryGoals) && r.primaryGoals.length > 0
-                  ? r.primaryGoals.join(", ")
-                  : "—";
-
-              return (
-                <tr key={r.id} className="border-t hover:bg-gray-50 transition">
-                  <td className="p-2">{created}</td>
-                  <td className="p-2">{name}</td>
-                  <td className="p-2">{r.email}</td>
-                  <td className="p-2">{r.riskTolerance ?? "—"}</td>
-                  <td className="p-2">{goals}</td>
-                  <td className="p-2 font-mono">{r.id}</td>
-                </tr>
-              );
-            })}
-            {rows.length === 0 && (
-              <tr>
-                <td className="p-4 text-gray-500" colSpan={6}>
-                  No results.
-                </td>
+        {/* Table */}
+        <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr className="text-gray-700">
+                <th className="text-left p-2">Created</th>
+                <th className="text-left p-2">Name</th>
+                <th className="text-left p-2">Email</th>
+                <th className="text-left p-2">Risk</th>
+                <th className="text-left p-2">Goals</th>
+                <th className="text-left p-2">ID</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const created = r?.createdAt
+                  ? new Date(r.createdAt).toLocaleString()
+                  : "";
+                const name = `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "(unnamed)";
+                const goals =
+                  Array.isArray(r.primaryGoals) && r.primaryGoals.length > 0
+                    ? r.primaryGoals.join(", ")
+                    : "—";
 
-      {/* Pager */}
-      <nav className="mt-2 flex items-center gap-2">
-        <span className="text-sm text-gray-600">
-          Page {page} of {totalPages}
-        </span>
-        <div className="ml-auto flex gap-2">
-          {page > 1 && (
-            <Link
-              className="btn-secondary"
-              href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-            >
-              Prev
-            </Link>
-          )}
-          {page < totalPages && (
-            <Link
-              className="btn-secondary"
-              href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-            >
-              Next
-            </Link>
-          )}
+                return (
+                  <tr key={r.id} className="border-t hover:bg-gray-50 transition">
+                    <td className="p-2">{created}</td>
+                    <td className="p-2">{name}</td>
+                    <td className="p-2">{r.email}</td>
+                    <td className="p-2">{r.riskTolerance ?? "—"}</td>
+                    <td className="p-2">{goals}</td>
+                    <td className="p-2 font-mono">{r.id}</td>
+                  </tr>
+                );
+              })}
+              {rows.length === 0 && (
+                <tr>
+                  <td className="p-4 text-gray-500" colSpan={6}>
+                    No results.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      </nav>
-    </main>
+
+        {/* Pager */}
+        <nav className="mt-2 flex items-center gap-2">
+          <span className="text-sm text-gray-600">
+            Page {page} of {totalPages}
+          </span>
+          <div className="ml-auto flex gap-2">
+            {page > 1 && (
+              <Link
+                className="btn-secondary"
+                href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              >
+                Prev
+              </Link>
+            )}
+            {page < totalPages && (
+              <Link
+                className="btn-secondary"
+                href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              >
+                Next
+              </Link>
+            )}
+          </div>
+        </nav>
+      </main>
+    </>
   );
 }
 
