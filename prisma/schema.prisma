@@ -17,7 +17,7 @@ model Client {
   // Identity & contact
   firstName          String
   lastName           String
-  email              String   @unique
+  email              String            // ⬅️ removed @unique (was global)
   phone              String?
   dateOfBirth        DateTime?
   addressLine1       String?
@@ -73,22 +73,23 @@ model Client {
   consentAcceptedAt  DateTime?
   onboardingStatus   String    @default("in_progress") // in_progress | verified | declined
 
-  // Advisor tracking (new)
-  advisorId          String?   // e.g., token/slug for /onboarding?advisor=<id>
+  // Advisor tracking
+  advisorId          String?   // keep optional to avoid migration pain on old rows
   advisor            Advisor?  @relation(fields: [advisorId], references: [id])
   advisorName        String?
   advisorFirm        String?
 
-  // Intake link token (new)
+  // Intake link token
   intakeToken        String?   @unique
 
-  // Full submission snapshot for audit/analytics (new)
+  // Full submission snapshot for audit/analytics
   rawSubmission      Json?
 
   matches            ProductMatch[]
 
   @@index([createdAt])
   @@index([advisorId])
+  @@unique([advisorId, email]) // ⬅️ unique per advisor
 }
 
 model ProductMatch {
