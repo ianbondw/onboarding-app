@@ -53,7 +53,7 @@ export default function Wizard({ token }: { token: string }) {
   const [investmentExperience, setExperience] = useState<string>("");
 
   // Identity (demo-friendly)
-  const [ssn, setSSN]                     = useState(""); // last-4 fine
+  const [ssn, setSSN]                     = useState("");
   const [idDocType, setIdDocType]         = useState<string>("");
   const [idDocUrl, setIdDocUrl]           = useState("");
   const [consentAccepted, setConsent]     = useState(false);
@@ -91,7 +91,7 @@ export default function Wizard({ token }: { token: string }) {
         employmentStatus: normalize(employmentStatus),
         employerName,
         annualIncomeBand: normalize(annualIncomeBand),
-        sourceOfFunds: sourceOfFunds.join(", "), // keep string for now
+        sourceOfFunds: sourceOfFunds.join(", "),
 
         liquidAssetsBand,
         illiquidAssetsBand,
@@ -114,7 +114,6 @@ export default function Wizard({ token }: { token: string }) {
         ssn, // last-4 is okay for demo
         idDocType: normalize(idDocType) || null,
         idDocUrl: idDocUrl || null,
-        // removed proofOfAddressUrl
 
         consentAccepted,
       };
@@ -177,7 +176,9 @@ export default function Wizard({ token }: { token: string }) {
 
           <div className="mt-4 rounded-md border p-3 text-sm">
             <div className="font-medium">Estimated Net Worth (auto)</div>
-            <div className="mt-1">Band: <span className="font-mono">${formatBand(netWorthBand)}</span></div>
+            <div className="mt-1">
+              Band: <span className="font-mono">{formatMoney(netWorthBand)}</span>
+            </div>
           </div>
 
           <div className="mt-4">
