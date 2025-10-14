@@ -1,3 +1,15 @@
+import { setSentryTagsServer } from "@/lib/sentry-tags";
+// ...
+export async function POST(req: Request) {
+  const body = await req.json();
+  const firmCode = body?.firmCode ?? body?.firm ?? null;
+  const advisorId = body?.advisorId ?? null;
+  const clientId = body?.clientId ?? null;
+
+  setSentryTagsServer({ firmCode, advisorId, clientId });
+
+  // ...your existing save-client logic
+}
 // src/app/api/clients/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "../../../prisma";

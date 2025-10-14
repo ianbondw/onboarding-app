@@ -13,16 +13,15 @@ function toLower(s: unknown) {
 }
 
 export default async function AdminClients(props: any) {
-  // Advisor cookie (existing behavior)
-  const advisorId = await getAdvisorIdFromCookie();
+  // Read cookies
+  const jar = await cookieStore();
+  const ownerCookie = Boolean(jar.get("admin_token")?.value);
+  const advisorId = (await getAdvisorIdFromCookie()) || undefined;
 
-  // Owner cookie (set by /api/admin/login after entering ADMIN_PASS)
-  const jar = await cookieStore(); // <-- await cookies() on Next 15
-  const hasOwnerCookie = Boolean(jar.get("admin_token")?.value);
-  const ownerMode = hasOwnerCookie && !advisorId; // owner without advisor scope
+  // 🔒 Rule: if advisor cookie exists → ALWAYS scope to advisor (even if owner cookie also exists)
+  const ownerMode = !advisorId && ownerCookie;
 
   if (!advisorId && !ownerMode) {
-    // No owner or advisor cookie -> still unauthorized
     return (
       <main className="mx-auto max-w-3xl p-6 space-y-4">
         <h1 className="text-2xl font-semibold text-red-700">
@@ -43,30 +42,26 @@ export default async function AdminClients(props: any) {
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q)?.toString().trim() ?? "";
   const hasQ = q.length > 0;
 
-  // Optional firm filter from query: /admin/clients?firm=abc
   const firmRaw = Array.isArray(searchParams.firm) ? searchParams.firm[0] : searchParams.firm;
   const firmCode: string | undefined = firmRaw ? String(firmRaw) : undefined;
 
   // ---------- Analytics ----------
   let totalClients = 0;
-  let last7d = 0;
   let riskMix: Record<string, number> = {};
   let goalMix: Record<string, number> = {};
   let analyticsError: string | null = null;
 
   try {
-    const baseWhere: any = ownerMode ? {} : { advisorId };
+    const baseWhere: any = advisorId ? { advisorId } : {}; // ← scope if advisorId present
 
     totalClients = await prisma.client.count({ where: baseWhere });
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    last7d = await prisma.client.count({
-      where: { ...baseWhere, createdAt: { gte: sevenDaysAgo } },
-    });
+    await prisma.client.count({ where: { ...baseWhere, createdAt: { gte: sevenDaysAgo } } });
 
     const recent = await prisma.client.findMany({
       where: baseWhere,
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "asc" },
       take: 5000,
       select: { riskTolerance: true, primaryGoals: true },
     });
@@ -82,7 +77,7 @@ export default async function AdminClients(props: any) {
     analyticsError = e?.message ?? "Analytics unavailable";
   }
 
-  // ---------- Table data ----------
+  // ---------- Table ----------
   const PAGE_SKIP = (page - 1) * PAGE_SIZE;
   let rows: any[] = [];
   let total = 0;
@@ -101,7 +96,7 @@ export default async function AdminClients(props: any) {
   } as const;
 
   try {
-    const baseWhere: any = ownerMode ? {} : { advisorId };
+    const baseWhere: any = advisorId ? { advisorId } : {}; // ← scope if advisorId present
 
     if (hasQ) {
       const all = await prisma.client.findMany({
@@ -152,61 +147,35 @@ export default async function AdminClients(props: any) {
 
   return (
     <>
-      {/* Sentry tagging (owner -> advisorId undefined) */}
-      <SentryInit firmCode={firmCode} advisorId={advisorId ?? undefined} />
-
+      <SentryInit firmCode={firmCode} advisorId={advisorId} />
       <main className="mx-auto max-w-6xl p-6 space-y-6">
-        {/* Header row */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold">
-              Client Submissions {ownerMode ? "(All Advisors)" : ""}
+              Client Submissions {advisorId ? "(Your Clients)" : "(All Advisors)"}
             </h1>
-            <span className="text-sm text-gray-500">({totalClients} total)</span>
+            <span className="text-sm text-gray-500">({total} total)</span>
           </div>
           <div className="ml-auto">
-            <a
-              href="/api/clients/export"
-              className="btn-secondary"
-              download
-              title="Download recent client submissions as CSV"
-            >
+            <a href="/api/clients/export" className="btn-secondary" download>
               Export CSV
             </a>
           </div>
         </div>
 
-        {/* Search */}
-        <form className="flex gap-2">
-          <input
-            className="input w-64"
-            name="q"
-            placeholder="Search name or email…"
-            defaultValue={q}
-          />
-          <button className="btn-secondary" type="submit">
-            Search
-          </button>
-        </form>
-
-        {/* Analytics */}
         {!analyticsError && (
           <section className="grid gap-4 md:grid-cols-2">
-            <Card title={`Risk Mix ${ownerMode ? "(all advisors)" : "(your clients)"}`}>
+            <Card title={`Risk Mix ${advisorId ? "(your clients)" : "(all advisors)"}`}>
               <div className="space-y-2">
-                {riskEntries.length === 0 && (
-                  <p className="text-sm text-slate-600">No data.</p>
-                )}
+                {riskEntries.length === 0 && <p className="text-sm text-slate-600">No data.</p>}
                 {riskEntries.map(([key, count]) => (
                   <Bar key={key} label={key} count={count} max={riskMax} />
                 ))}
               </div>
             </Card>
-            <Card title={`Top Goals ${ownerMode ? "(all advisors)" : "(your clients)"}`}>
+            <Card title={`Top Goals ${advisorId ? "(your clients)" : "(all advisors)"}`}>
               <div className="space-y-2">
-                {goalEntries.length === 0 && (
-                  <p className="text-sm text-slate-600">No data.</p>
-                )}
+                {goalEntries.length === 0 && <p className="text-sm text-slate-600">No data.</p>}
                 {goalEntries.map(([key, count]) => (
                   <Bar key={key} label={key} count={count} max={goalMax} />
                 ))}
@@ -215,7 +184,6 @@ export default async function AdminClients(props: any) {
           </section>
         )}
 
-        {/* Table */}
         <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
@@ -230,15 +198,12 @@ export default async function AdminClients(props: any) {
             </thead>
             <tbody>
               {rows.map((r) => {
-                const created = r?.createdAt
-                  ? new Date(r.createdAt).toLocaleString()
-                  : "";
+                const created = r?.createdAt ? new Date(r.createdAt).toLocaleString() : "";
                 const name = `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "(unnamed)";
                 const goals =
                   Array.isArray(r.primaryGoals) && r.primaryGoals.length > 0
                     ? r.primaryGoals.join(", ")
                     : "—";
-
                 return (
                   <tr key={r.id} className="border-t hover:bg-gray-50 transition">
                     <td className="p-2">{created}</td>
@@ -261,25 +226,16 @@ export default async function AdminClients(props: any) {
           </table>
         </div>
 
-        {/* Pager */}
         <nav className="mt-2 flex items-center gap-2">
-          <span className="text-sm text-gray-600">
-            Page {page} of {totalPages}
-          </span>
+          <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
           <div className="ml-auto flex gap-2">
             {page > 1 && (
-              <Link
-                className="btn-secondary"
-                href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-              >
+              <Link className="btn-secondary" href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>
                 Prev
               </Link>
             )}
             {page < totalPages && (
-              <Link
-                className="btn-secondary"
-                href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-              >
+              <Link className="btn-secondary" href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>
                 Next
               </Link>
             )}

@@ -176,15 +176,23 @@ export async function POST(req: NextRequest, context: any) {
       return NextResponse.json({ error: "Missing required fields (firstName, lastName, email)" }, { status: 400 });
     }
 
+    // Friendly email format check (optional but helpful)
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email))) {
+      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+    }
+
     const enc = await encryptPII(ssn);
     const consentAcceptedAt = consentAccepted ? new Date() : null;
 
-    // 🔗 Save the client **scoped to this advisor**
-    const client = await prisma.client.create({
-      data: {
-        advisorId, // <-- critical: link submission to advisor behind the token
+    // 🔗 UPSERT the client **scoped to this advisor**
+    //    Requires schema: @@unique([advisorId, email]) on Client
+    const client = await prisma.client.upsert({
+      where: { advisorId_email: { advisorId, email } },
+      create: {
+        advisorId,
+        email,
 
-        firstName, lastName, email, phone,
+        firstName, lastName, phone,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         addressLine1, addressLine2, city, state, postalCode, country, citizenship,
 
@@ -203,7 +211,27 @@ export async function POST(req: NextRequest, context: any) {
         idDocType, idDocUrl, proofOfAddressUrl,
         consentAcceptedAt,
         onboardingStatus: "in_progress",
-      }
+      },
+      update: {
+        firstName, lastName, phone,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        addressLine1, addressLine2, city, state, postalCode, country, citizenship,
+
+        employmentStatus, employerName, annualIncomeBand, sourceOfFunds,
+        liquidAssetsBand, illiquidAssetsBand, liabilitiesBand, netWorthBand,
+        hasIRA: !!hasIRA, has401k: !!has401k, hasTaxable: hasTaxable !== false, hasCrypto: !!hasCrypto, hasRealEstate: !!hasRealEstate,
+
+        riskTolerance, timeHorizon,
+        primaryGoals: Array.isArray(primaryGoals) ? primaryGoals : [],
+        liquidityNeeds, constraints: Array.isArray(constraints) ? constraints : [],
+        investmentExperience,
+
+        idDocType, idDocUrl, proofOfAddressUrl,
+        consentAcceptedAt,
+        onboardingStatus: "in_progress",
+        updatedAt: new Date(),
+      },
+      select: { id: true },
     });
 
     const recs = matchProducts({
@@ -229,7 +257,10 @@ export async function POST(req: NextRequest, context: any) {
       });
     }
 
-    return NextResponse.json({ ok: true, token, advisorId, clientId: client.id, recommendations: recs }, { status: 201 });
+    return NextResponse.json(
+      { ok: true, token, advisorId, clientId: client.id, recommendations: recs },
+      { status: 201 }
+    );
   } catch (e: any) {
     const status = e?.status || 500;
     const extraHeaders = e?.headers || {};

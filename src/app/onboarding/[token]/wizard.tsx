@@ -1,359 +1,394 @@
+// src/app/onboarding/[token]/wizard.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import {
+  EMPLOYMENT_OPTIONS,
+  INCOME_RANGE,
+  ASSET_BUCKETS,
+  RANGE_STD,
+  SOURCE_OF_FUNDS,
+  ACCOUNT_TYPES,
+  RISK_OPTIONS,
+  TIME_HORIZON,
+  LIQUIDITY_NEEDS,
+  PRIMARY_GOALS,
+  CONSTRAINTS,
+  EXPERIENCE,
+  ID_DOC_TYPES,
+  computeNetWorthBand,
+} from "@/lib/validation";
 
-type Step = "basic" | "employment" | "wealth" | "suitability" | "kyc" | "review";
+type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
-// Human-friendly labels for the step chips (keys stay the same for your API/DB)
-const STEPS: { key: Step; label: string }[] = [
-  { key: "basic",       label: "About you" },
-  { key: "employment",  label: "Work & income" },
-  { key: "wealth",      label: "Assets & accounts" },
-  { key: "suitability", label: "Goals & risk" },
-  { key: "kyc",         label: "Identity verify" },
-  { key: "review",      label: "Review & submit" },
-];
+export default function Wizard({ token }: { token: string }) {
+  const [step, setStep] = useState<Step>(0);
 
-const incomeBands = ["<50k", "50-100k", "100-250k", "250-500k", "500k+"];
-const wealthBands  = ["<100k", "100-250k", "250-500k", "500k-1M", "1M+"];
-const riskOptions  = ["conservative", "moderate", "growth", "aggressive"];
-const horizon      = ["<3y", "3-5y", "5-10y", "10+y"];
-const goals        = ["retirement", "income", "growth", "education", "legacy", "tax"];
+  // ---- Form state (simple) ----
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName]   = useState("");
+  const [email, setEmail]         = useState("");
+  const [phone, setPhone]         = useState("");
 
-export default function Wizard() {
-  const { token } = useParams<{ token: string }>();
-  const [step, setStep] = useState<Step>("basic");
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [employmentStatus, setEmploymentStatus] = useState<string>("");
+  const [employerName, setEmployerName]         = useState("");
+  const [annualIncomeBand, setAnnualIncomeBand] = useState<string>("");
+  const [sourceOfFunds, setSourceOfFunds]       = useState<string[]>([]); // multi
 
-  const [form, setForm] = useState<any>({
-    firstName:"", lastName:"", email:"", phone:"",
-    dateOfBirth:"", addressLine1:"", addressLine2:"", city:"", state:"", postalCode:"", country:"US", citizenship:"US",
-    employmentStatus:"", employerName:"", annualIncomeBand:"", sourceOfFunds:"",
-    liquidAssetsBand:"", illiquidAssetsBand:"", liabilitiesBand:"", netWorthBand:"",
-    hasIRA:false, has401k:false, hasTaxable:true, hasCrypto:false, hasRealEstate:false,
-    riskTolerance:"", timeHorizon:"", primaryGoals:[] as string[], liquidityNeeds:"", constraints:[] as string[], investmentExperience:"",
-    ssn:"", idDocType:"", idDocUrl:"", proofOfAddressUrl:"", consentAccepted:false,
-  });
+  // Assets in plain English
+  const [cashBand, setCashBand]                 = useState<string>("");
+  const [investmentsBand, setInvestmentsBand]   = useState<string>("");
+  const [retirementBand, setRetirementBand]     = useState<string>("");
+  const [realEstateBand, setRealEstateBand]     = useState<string>("");
+  const [otherAssetsBand, setOtherAssetsBand]   = useState<string>("");
+  const [debtsBand, setDebtsBand]               = useState<string>("");
 
-  function next() {
-    setStep(s =>
-      s==="basic"?"employment":
-      s==="employment"?"wealth":
-      s==="wealth"?"suitability":
-      s==="suitability"?"kyc":"review"
-    );
+  const [accounts, setAccounts] = useState<string[]>([]); // multi
+
+  const [riskTolerance, setRiskTolerance] = useState<string>("");
+  const [timeHorizon, setTimeHorizon]     = useState<string>("");
+  const [primaryGoals, setPrimaryGoals]   = useState<string[]>([]);
+  const [liquidityNeeds, setLiquidity]    = useState<string>("");
+  const [constraints, setConstraints]     = useState<string[]>([]);
+  const [investmentExperience, setExperience] = useState<string>("");
+
+  // Identity (demo-friendly)
+  const [ssn, setSSN]                     = useState(""); // last-4 ok
+  const [idDocType, setIdDocType]         = useState<string>("");
+  const [idDocUrl, setIdDocUrl]           = useState("");
+  const [proofOfAddressUrl, setPoAUrl]    = useState("");
+  const [consentAccepted, setConsent]     = useState(false);
+
+  const netWorthBand = useMemo(
+    () =>
+      computeNetWorthBand({
+        cash: cashBand,
+        investments: investmentsBand,
+        retirement: retirementBand,
+        realEstate: realEstateBand,
+        otherAssets: otherAssetsBand,
+        debts: debtsBand,
+      }),
+    [cashBand, investmentsBand, retirementBand, realEstateBand, otherAssetsBand, debtsBand]
+  );
+
+  // Derived legacy fields to fit your API without DB changes
+  const liquidAssetsBand   = useMemo(() => combineTwo(cashBand, investmentsBand), [cashBand, investmentsBand]);
+  const illiquidAssetsBand = useMemo(() => combineTwo(realEstateBand, otherAssetsBand), [realEstateBand, otherAssetsBand]);
+
+  const [err, setErr] = useState("");
+
+  function toggleMulti(list: string[], value: string, setter: (v: string[]) => void) {
+    if (list.includes(value)) setter(list.filter(v => v !== value));
+    else setter([...list, value]);
   }
-  function prev() {
-    setStep(s =>
-      s==="review"?"kyc":
-      s==="kyc"?"suitability":
-      s==="suitability"?"wealth":
-      s==="wealth"?"employment":"basic"
-    );
-  }
 
-  const canContinue = useMemo(() => {
-    if (step === "basic") return form.firstName && form.lastName && form.email;
-    if (step === "suitability") return form.riskTolerance && form.timeHorizon && (form.primaryGoals?.length > 0);
-    if (step === "kyc") return !!form.consentAccepted;
-    return true;
-  }, [step, form]);
-
-  // submit and show advisor recommendations from API response
-  async function submit() {
-    setLoading(true); setMsg(null);
+  async function onSubmit() {
+    setErr("");
     try {
-      const res = await fetch(`/api/onboarding/${token}`, {
+      const body = {
+        firstName,
+        lastName,
+        email,
+        phone,
+
+        // employment / funds (join multi for now)
+        employmentStatus: normalize(employmentStatus),
+        employerName,
+        annualIncomeBand: normalize(annualIncomeBand),
+        sourceOfFunds: sourceOfFunds.join(", "), // keep as string for now
+
+        // assets mapped back to legacy names your API expects
+        liquidAssetsBand,
+        illiquidAssetsBand,
+        liabilitiesBand: normalize(debtsBand),
+        netWorthBand,
+
+        // account presence booleans derived from multi
+        hasIRA: accounts.some(a => ["Roth IRA", "Traditional IRA"].includes(a)),
+        has401k: accounts.includes("401(k)"),
+        hasTaxable: accounts.includes("Brokerage"),
+        hasCrypto: accounts.includes("Crypto"),
+        hasRealEstate: accounts.includes("Real Estate"),
+
+        // goals & risk
+        riskTolerance: normalize(riskTolerance),
+        timeHorizon: normalize(timeHorizon),
+        primaryGoals: primaryGoals.map(normalize),
+        liquidityNeeds: normalize(liquidityNeeds),
+        constraints: constraints.map(normalize),
+        investmentExperience: normalize(investmentExperience),
+
+        // identity (demo-friendly)
+        ssn, // last-4 is fine; API encrypts or just stores nulls if key missing
+        idDocType: normalize(idDocType) || null,
+        idDocUrl: idDocUrl || null,
+        proofOfAddressUrl: proofOfAddressUrl || null,
+
+        consentAccepted,
+      };
+
+      const res = await fetch(`/api/onboarding/${encodeURIComponent(token)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form)
+        body: JSON.stringify(body),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to submit");
 
-      const recs = Array.isArray(data?.recommendations) ? data.recommendations : [];
-      if (recs.length === 0) {
-        setMsg("Submitted. No immediate suggestions — advisor will follow up.");
-      } else {
-        setMsg(JSON.stringify({
-          header: "Suggested strategies & products",
-          items: recs.map((r:any) => ({
-            code: r.code,
-            name: r.name,
-            rationale: r.rationale,
-            risk: r.risk ?? "—"
-          }))
-        }));
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || "Submission failed");
       }
-    } catch (e:any) {
-      setMsg(JSON.stringify({ error: e.message }));
-    } finally {
-      setLoading(false);
+
+      const j = await res.json();
+      // simple success state
+      alert("Submitted! Thanks.");
+      window.location.href = "/"; // or a success page
+    } catch (e: any) {
+      setErr(e?.message || String(e));
     }
   }
 
   return (
-    <div className="relative z-10">
-      <div className="mx-auto max-w-3xl">
-        {/* Stepper */}
-        <div className="mb-6 flex flex-wrap gap-2 text-xs">
-          {STEPS.map(({ key, label }) => (
-            <span
-              key={key}
-              className={`rounded-full px-3 py-1 ${step===key ? "bg-slate-900 text-white" : "bg-white text-slate-700 border"}`}
-            >
-              {label}
-            </span>
-          ))}
-        </div>
+    <div className="mx-auto max-w-3xl space-y-6 p-4">
+      <Stepper step={step} />
+      {step === 0 && (
+        <Card title="About you">
+          <Grid>
+            <Input label="First name" value={firstName} onChange={setFirstName} required />
+            <Input label="Last name"  value={lastName}  onChange={setLastName} required />
+            <Input label="Email"      value={email}     onChange={setEmail} type="email" required />
+            <Input label="Phone"      value={phone}     onChange={setPhone} />
+          </Grid>
+          <Nav step={step} setStep={setStep} canNext={!!firstName && !!lastName && !!email} />
+        </Card>
+      )}
 
-        <div className="rounded-2xl border bg-white p-6 shadow-card">
-          <h2 className="text-xl font-medium">Client Onboarding</h2>
-          <p className="mt-1 text-sm text-slate-600">We ask only what’s needed. Your data is encrypted and used to tailor recommendations.</p>
+      {step === 1 && (
+        <Card title="Work & income">
+          <Grid>
+            <Select label="Employment status" value={employmentStatus} onChange={setEmploymentStatus} options={EMPLOYMENT_OPTIONS} required tooltip="Current work situation." />
+            <Input  label="Employer name" value={employerName} onChange={setEmployerName} />
+            <Select label="Annual income (range)" value={annualIncomeBand} onChange={setAnnualIncomeBand} options={INCOME_RANGE} required />
+            <Multi label="Source of funds (select all that apply)" values={sourceOfFunds} onToggle={(v)=>toggleMulti(sourceOfFunds, v, setSourceOfFunds)} options={SOURCE_OF_FUNDS} />
+          </Grid>
+          <Nav step={step} setStep={setStep} canNext={!!employmentStatus && !!annualIncomeBand} />
+        </Card>
+      )}
 
-          <div className="mt-6 space-y-4">
-            {step === "basic" && (
-              <>
-                <Row>
-                  <Input label="First name" v={form.firstName} set={(v)=>setForm({...form, firstName:v})}/>
-                  <Input label="Last name"  v={form.lastName}  set={(v)=>setForm({...form, lastName:v})}/>
-                </Row>
-                <Row>
-                  <Input label="Email" type="email" v={form.email} set={(v)=>setForm({...form, email:v})}/>
-                  {/* Phone: mobile-friendly keypad */}
-                  <Input
-                    label="Phone"
-                    type="tel"
-                    v={form.phone}
-                    set={(v)=>setForm({...form, phone:v})}
-                    // @ts-ignore
-                    inputMode="tel"
-                    autoComplete="tel"
-                  />
-                </Row>
-                <Row>
-                  <Input label="Date of birth" type="date" v={form.dateOfBirth} set={(v)=>setForm({...form, dateOfBirth:v})}/>
-                  <Input label="Citizenship" v={form.citizenship} set={(v)=>setForm({...form, citizenship:v})}/>
-                </Row>
-                <Input label="Address line 1" v={form.addressLine1} set={(v)=>setForm({...form, addressLine1:v})}/>
-                <Input label="Address line 2" v={form.addressLine2} set={(v)=>setForm({...form, addressLine2:v})}/>
-                <Row>
-                  <Input label="City" v={form.city} set={(v)=>setForm({...form, city:v})}/>
-                  <Input label="State" v={form.state} set={(v)=>setForm({...form, state:v})}/>
-                  <Input label="Postal code" v={form.postalCode} set={(v)=>setForm({...form, postalCode:v})}/>
-                </Row>
-              </>
-            )}
+      {step === 2 && (
+        <Card title="Assets & accounts">
+          <Grid>
+            <Select label={ASSET_BUCKETS.cash}        value={cashBand}        onChange={setCashBand}        options={RANGE_STD} tooltip="Checking/savings." />
+            <Select label={ASSET_BUCKETS.investments} value={investmentsBand} onChange={setInvestmentsBand} options={RANGE_STD} tooltip="Brokerage, ETFs, stocks, bonds." />
+            <Select label={ASSET_BUCKETS.retirement}  value={retirementBand}  onChange={setRetirementBand}  options={RANGE_STD} tooltip="401(k), IRA, etc." />
+            <Select label={ASSET_BUCKETS.realEstate}  value={realEstateBand}  onChange={setRealEstateBand}  options={RANGE_STD} tooltip="Estimate equity, not market value." />
+            <Select label={ASSET_BUCKETS.otherAssets} value={otherAssetsBand} onChange={setOtherAssetsBand} options={RANGE_STD} />
+            <Select label={ASSET_BUCKETS.debts}       value={debtsBand}       onChange={setDebtsBand}       options={RANGE_STD} tooltip="Mortgage balance, loans, credit cards." />
+          </Grid>
 
-            {step === "employment" && (
-              <>
-                <Select label="Employment status" v={form.employmentStatus} set={(v)=>setForm({...form, employmentStatus:v})}
-                        opts={["employed","self_employed","student","retired","unemployed"]}/>
-                <Input label="Employer name" v={form.employerName} set={(v)=>setForm({...form, employerName:v})}/>
-                <Select label="Annual income (range)" v={form.annualIncomeBand} set={(v)=>setForm({...form, annualIncomeBand:v})} opts={incomeBands}/>
-                <Select label="Source of funds" v={form.sourceOfFunds} set={(v)=>setForm({...form, sourceOfFunds:v})}
-                        opts={["salary","business","inheritance","asset_sale","other"]}/>
-              </>
-            )}
-
-            {step === "wealth" && (
-              <>
-                <Select label="Liquid assets (range)" v={form.liquidAssetsBand} set={(v)=>setForm({...form, liquidAssetsBand:v})} opts={wealthBands}/>
-                <Select label="Illiquid assets (range)" v={form.illiquidAssetsBand} set={(v)=>setForm({...form, illiquidAssetsBand:v})} opts={wealthBands}/>
-                <Select label="Liabilities (range)" v={form.liabilitiesBand} set={(v)=>setForm({...form, liabilitiesBand:v})} opts={wealthBands}/>
-                <Select label="Estimated net worth (range)" v={form.netWorthBand} set={(v)=>setForm({...form, netWorthBand:v})} opts={wealthBands}/>
-                <Row>
-                  <Check label="Has IRA"         c={form.hasIRA}        set={(v)=>setForm({...form, hasIRA:v})}/>
-                  <Check label="Has 401k"        c={form.has401k}       set={(v)=>setForm({...form, has401k:v})}/>
-                  <Check label="Taxable account" c={form.hasTaxable}    set={(v)=>setForm({...form, hasTaxable:v})}/>
-                  <Check label="Crypto"          c={form.hasCrypto}     set={(v)=>setForm({...form, hasCrypto:v})}/>
-                  <Check label="Real estate"     c={form.hasRealEstate} set={(v)=>setForm({...form, hasRealEstate:v})}/>
-                </Row>
-              </>
-            )}
-
-            {step === "suitability" && (
-              <>
-                <Select label="Risk tolerance" v={form.riskTolerance} set={(v)=>setForm({...form, riskTolerance:v})} opts={riskOptions}/>
-                <Select label="Time horizon"   v={form.timeHorizon}   set={(v)=>setForm({...form, timeHorizon:v})}   opts={horizon}/>
-                <Multi  label="Primary goals"  arr={form.primaryGoals} setArr={(v)=>setForm({...form, primaryGoals:v})} opts={goals}/>
-                <Select label="Liquidity needs" v={form.liquidityNeeds} set={(v)=>setForm({...form, liquidityNeeds:v})} opts={["none","some","high"]}/>
-                <Multi  label="Constraints"     arr={form.constraints}  setArr={(v)=>setForm({...form, constraints:v})}  opts={["no_leverage","esg_only"]}/>
-                <Select label="Investment experience" v={form.investmentExperience} set={(v)=>setForm({...form, investmentExperience:v})}
-                        opts={["none","basic","intermediate","advanced"]}/>
-              </>
-            )}
-
-            {step === "kyc" && (
-              <>
-                <div className="rounded-lg bg-slate-50 p-4 text-sm text-slate-700">
-                  <strong>Why we ask for SSN/ID:</strong> to verify identity and fulfill tax/reg obligations.
-                </div>
-                {/* SSN: numeric keypad, no autocomplete */}
-                <Input
-                  label="SSN (9 digits)"
-                  placeholder="***-**-****"
-                  v={form.ssn}
-                  set={(v)=>setForm({...form, ssn:v})}
-                  // @ts-ignore
-                  inputMode="numeric"
-                  autoComplete="off"
-                />
-                <Select label="ID document type" v={form.idDocType} set={(v)=>setForm({...form, idDocType:v})} opts={["driver_license","passport","other"]}/>
-                <Input label="ID document URL (optional for demo)" v={form.idDocUrl} set={(v)=>setForm({...form, idDocUrl:v})}/>
-                <Input label="Proof of address URL (optional for demo)" v={form.proofOfAddressUrl} set={(v)=>setForm({...form, proofOfAddressUrl:v})}/>
-                <div className="mt-1">
-                  <label className="inline-flex items-center gap-2 text-sm">
-                    <input type="checkbox" className="chk" checked={form.consentAccepted} onChange={(e)=>setForm({...form, consentAccepted:e.target.checked})}/>
-                    <span>I consent to data processing & e-signature.</span>
-                  </label>
-                </div>
-              </>
-            )}
-
-            {step === "review" && (
-              <div className="rounded-lg border p-4 text-sm">
-                <p className="mb-2 text-slate-700">Review your info. When you submit, we’ll generate advisor-ready recommendations.</p>
-                <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-slate-50 p-3">{JSON.stringify(form, null, 2)}</pre>
-              </div>
-            )}
+          <div className="mt-4 rounded-md border p-3 text-sm">
+            <div className="font-medium">Estimated Net Worth (auto)</div>
+            <div className="mt-1">Net Worth Band: <span className="font-mono">{netWorthBand}</span></div>
           </div>
 
-          {/* Actions */}
-          <div className="mt-6">
-            {/* Desktop/tablet buttons */}
-            <div className="hidden sm:flex items-center gap-3">
-              {step !== "basic" && <button onClick={prev} className="btn-secondary">Back</button>}
-              {step !== "review" ? (
-                <button onClick={next} disabled={!canContinue}
-                  className={`btn-primary ${!canContinue ? "opacity-60 cursor-not-allowed" : ""}`}>
-                  Continue
-                </button>
-              ) : (
-                <button onClick={submit} disabled={loading} className="btn-primary">
-                  {loading ? "Submitting..." : "Submit"}
-                </button>
-              )}
-            </div>
-
-            {/* Mobile sticky bar */}
-            <div className="sm:hidden sticky-actions">
-              {step !== "basic" && <button onClick={prev} className="btn-secondary w-full">Back</button>}
-              {step !== "review" ? (
-                <button onClick={next} disabled={!canContinue}
-                  className={`btn-primary w-full ${!canContinue ? "opacity-60 cursor-not-allowed" : ""}`}>
-                  Continue
-                </button>
-              ) : (
-                <button onClick={submit} disabled={loading} className="btn-primary w-full">
-                  {loading ? "Submitting..." : "Submit"}
-                </button>
-              )}
-            </div>
+          <div className="mt-4">
+            <Multi label="Accounts (select all that apply)" values={accounts} onToggle={(v)=>toggleMulti(accounts, v, setAccounts)} options={ACCOUNT_TYPES} />
           </div>
 
-          {/* Advisor suggestions */}
-          {msg && (
-            <div className="mt-6 rounded-xl border bg-slate-50 p-4">
-              {(() => {
-                try {
-                  const parsed = JSON.parse(msg);
-                  if (parsed?.error) return <p className="text-sm text-red-700">{parsed.error}</p>;
-                  return (
-                    <div>
-                      <div className="text-sm font-medium text-slate-900">{parsed.header}</div>
-                      <ul className="mt-3 space-y-3">
-                        {parsed.items.map((it:any, idx:number) => (
-                          <li key={idx} className="rounded-lg border bg-white p-3">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="font-medium">{it.name}</span>
-                              <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white">{it.code}</span>
-                            </div>
-                            <p className="mt-1 text-sm text-slate-700">{it.rationale}</p>
-                            <p className="mt-1 text-xs text-slate-500">Risk band: {it.risk}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  );
-                } catch {
-                  return <p className="text-sm text-slate-700">{String(msg)}</p>;
-                }
-              })()}
+          <Nav step={step} setStep={setStep} canNext />
+        </Card>
+      )}
+
+      {step === 3 && (
+        <Card title="Goals & risk">
+          <Grid>
+            <Select label="Risk tolerance"  value={riskTolerance} onChange={setRiskTolerance} options={RISK_OPTIONS} required />
+            <Select label="Time horizon"    value={timeHorizon}   onChange={setTimeHorizon}   options={TIME_HORIZON} required tooltip="When you expect to use this money." />
+            <Multi  label="Primary goals (select all that apply)" values={primaryGoals} onToggle={(v)=>toggleMulti(primaryGoals, v, setPrimaryGoals)} options={PRIMARY_GOALS} />
+            <Select label="Liquidity needs" value={liquidityNeeds} onChange={setLiquidity} options={LIQUIDITY_NEEDS} tooltip="How quickly you might need cash without large losses." />
+            <Multi  label="Constraints / preferences" values={constraints} onToggle={(v)=>toggleMulti(constraints, v, setConstraints)} options={CONSTRAINTS} />
+            <Select label="Investment experience" value={investmentExperience} onChange={setExperience} options={EXPERIENCE} />
+          </Grid>
+          <Nav step={step} setStep={setStep} canNext />
+        </Card>
+      )}
+
+      {step === 4 && (
+        <Card title="Identity (demo)">
+          <p className="mb-3 text-sm text-gray-600">
+            For demo, SSN <strong>last-4</strong> is fine. Document fields are optional.
+          </p>
+          <Grid>
+            <Input label="SSN (last-4)" value={ssn} onChange={setSSN} maxLength={4} />
+            <Select label="ID document type (optional)" value={idDocType} onChange={setIdDocType} options={ID_DOC_TYPES} />
+            <Input label="ID document URL (optional)" value={idDocUrl} onChange={setIdDocUrl} />
+            <Input label="Proof of address URL (optional)" value={proofOfAddressUrl} onChange={setPoAUrl} />
+          </Grid>
+
+          <label className="mt-4 flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={consentAccepted} onChange={e=>setConsent(e.target.checked)} />
+            <span>I consent to data processing & e-signature.</span>
+          </label>
+
+          <Nav step={step} setStep={setStep} canNext={consentAccepted} />
+        </Card>
+      )}
+
+      {step === 5 && (
+        <Card title="Review & submit">
+          <div className="rounded-md border bg-white p-3 text-sm">
+            <pre className="max-h-96 whitespace-pre-wrap">{JSON.stringify({
+              firstName, lastName, email, phone,
+              employmentStatus, employerName, annualIncomeBand, sourceOfFunds,
+              cashBand, investmentsBand, retirementBand, realEstateBand, otherAssetsBand, debtsBand,
+              netWorthBand, accounts,
+              riskTolerance, timeHorizon, primaryGoals, liquidityNeeds, constraints, investmentExperience,
+              ssn, idDocType, idDocUrl, proofOfAddressUrl, consentAccepted,
+            }, null, 2)}</pre>
+          </div>
+
+          {err && (
+            <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {err}
             </div>
           )}
-        </div>
-      </div>
+
+          <div className="mt-4 flex gap-2">
+            <button className="btn-secondary" onClick={()=>setStep((s)=>((s-1) as Step))}>Back</button>
+            <button className="btn-primary" onClick={onSubmit}>Submit</button>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
 
-function Row({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-4 md:grid-cols-2">{children}</div>;
+/* ================= UI bits ================= */
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border bg-white p-5 shadow-sm">
+      <div className="text-base font-medium text-slate-900">{title}</div>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
 }
 
-function Input({ label, v, set, type="text", placeholder, ...rest }:{
-  label:string; v:string; set:(s:string)=>void; type?:string; placeholder?:string;
-  [key:string]: any;
+function Grid({ children }: { children: React.ReactNode }) {
+  return <div className="grid gap-3 sm:grid-cols-2">{children}</div>;
+}
+
+function Input({
+  label, value, onChange, type="text", required, maxLength
+}: {
+  label: string; value: string; onChange: (v: string)=>void; type?: string; required?: boolean; maxLength?: number;
 }) {
   return (
-    <label className="block text-sm">
-      <span className="mb-1 inline-block text-slate-700">{label}</span>
+    <label className="text-sm">
+      <div className="mb-1 text-slate-700">{label}{required ? " *" : ""}</div>
       <input
-        className="input"
+        className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+        value={value}
+        onChange={e=>onChange(e.target.value)}
         type={type}
-        value={v}
-        placeholder={placeholder}
-        onChange={(e)=>set(e.target.value)}
-        {...rest}
+        required={required}
+        maxLength={maxLength}
       />
     </label>
   );
 }
 
-function Select({ label, v, set, opts }:{
-  label:string; v:string; set:(s:string)=>void; opts:string[];
+function Select({
+  label, value, onChange, options, required, tooltip
+}: {
+  label: string; value: string; onChange: (v: string)=>void; options: string[]; required?: boolean; tooltip?: string;
 }) {
   return (
-    <label className="block text-sm">
-      <span className="mb-1 inline-block text-slate-700">{label}</span>
-      <select className="select" value={v} onChange={(e)=>set(e.target.value)}>
+    <label className="text-sm">
+      <div className="mb-1 flex items-center gap-2 text-slate-700">
+        <span>{label}{required ? " *" : ""}</span>
+        {tooltip ? <span title={tooltip} className="cursor-help text-xs text-slate-500">ⓘ</span> : null}
+      </div>
+      <select
+        className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+        value={value}
+        onChange={e=>onChange(e.target.value)}
+        required={required}
+      >
         <option value="">Select…</option>
-        {opts.map(o=> <option key={o} value={o}>{o}</option>)}
+        {options.map((o)=> <option key={o} value={o}>{o}</option>)}
       </select>
     </label>
   );
 }
 
-function Check({ label, c, set }:{ label:string; c:boolean; set:(b:boolean)=>void }) {
-  return (
-    <label className="inline-flex items-center gap-2 text-sm">
-      <input type="checkbox" className="chk" checked={c} onChange={(e)=>set(e.target.checked)} />
-      <span>{label}</span>
-    </label>
-  );
-}
-
-function Multi({ label, arr, setArr, opts }:{
-  label:string; arr:string[]; setArr:(v:string[])=>void; opts:string[];
+function Multi({
+  label, values, onToggle, options
+}: {
+  label: string; values: string[]; onToggle: (v: string)=>void; options: string[];
 }) {
   return (
-    <label className="block text-sm">
-      <span className="mb-1 inline-block text-slate-700">{label}</span>
+    <div className="text-sm sm:col-span-2">
+      <div className="mb-1 text-slate-700">{label}</div>
       <div className="flex flex-wrap gap-2">
-        {opts.map(o=>{
-          const active = arr.includes(o);
+        {options.map(o => {
+          const active = values.includes(o);
           return (
-            <button key={o} type="button"
-              onClick={()=>setArr(active ? arr.filter(v=>v!==o) : [...arr, o])}
-              className={`rounded-full border px-3 py-1 text-xs ${active ? "bg-slate-900 text-white" : "bg-white"}`}>
+            <button
+              key={o}
+              type="button"
+              onClick={()=>onToggle(o)}
+              className={`rounded-full border px-3 py-1 ${active ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
+            >
               {o}
             </button>
           );
         })}
       </div>
-    </label>
+    </div>
   );
+}
+
+function Nav({ step, setStep, canNext }: { step: Step; setStep: (s: Step)=>void; canNext: boolean }) {
+  return (
+    <div className="mt-4 flex gap-2">
+      {step > 0 && <button className="btn-secondary" onClick={()=>setStep(((step-1) as Step))}>Back</button>}
+      <button className="btn-primary disabled:opacity-50" disabled={!canNext} onClick={()=>setStep(((step+1) as Step))}>
+        Continue
+      </button>
+    </div>
+  );
+}
+
+function Stepper({ step }: { step: number }) {
+  const steps = ["About you","Work & income","Assets & accounts","Goals & risk","Identity verify","Review & submit"];
+  return (
+    <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+      {steps.map((s, i)=> (
+        <span key={s} className={`rounded-full px-2 py-1 ${i === step ? "bg-black text-white" : "bg-gray-100"}`}>{s}</span>
+      ))}
+    </div>
+  );
+}
+
+/* ============ Helpers ============ */
+
+// Combine two user-facing range labels into one rough band (pick the larger bucket).
+function combineTwo(a?: string, b?: string) {
+  const ranks = ["<100k","100-250k","250-500k","500k-1M","1-3M","3M+"];
+  const ra = ranks.indexOf(a || "");
+  const rb = ranks.indexOf(b || "");
+  const idx = Math.max(ra, rb);
+  return idx >= 0 ? ranks[idx] : "";
+}
+
+// Normalize to lower_snake-ish strings the API used previously (safe/no-op if you later not need it)
+function normalize(label: string): string {
+  if (!label) return "";
+  return label
+    .replace(/[–—]/g, "-")
+    .replace(/\s*\(\S.*?\)\s*/g, "")   // strip parenthetical hints
+    .replace(/\s+/g, "_")
+    .replace(/[^\w+-]/g, "")
+    .toLowerCase();
 }
