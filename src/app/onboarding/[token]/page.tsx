@@ -1,13 +1,28 @@
-"use client";
-
-import React from "react";
-import { useSearchParams } from "next/navigation";
+// src/app/onboarding/[token]/page.tsx
 import Wizard from "./wizard";
 
-export default function TokenOnboardingPage() {
-  const params = useSearchParams();
-  const brandName = params.get("brandName") ?? "Your firm";
-  const brandLogo = params.get("brandLogo"); // optional URL param
+export default function TokenOnboardingPage({
+  params,
+  searchParams,
+}: {
+  params: { token: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  const token = params.token;
+
+  const brandName =
+    (typeof searchParams?.brandName === "string"
+      ? searchParams?.brandName
+      : Array.isArray(searchParams?.brandName)
+      ? searchParams?.brandName[0]
+      : null) || "Your firm";
+
+  const brandLogo =
+    typeof searchParams?.brandLogo === "string"
+      ? searchParams?.brandLogo
+      : Array.isArray(searchParams?.brandLogo)
+      ? searchParams?.brandLogo[0]
+      : undefined;
 
   return (
     <div className="mx-auto max-w-4xl py-6">
@@ -17,6 +32,7 @@ export default function TokenOnboardingPage() {
         {/* White-label spot: show provided logo or a placeholder */}
         <div className="flex items-center gap-3">
           {brandLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={brandLogo}
               alt={`${brandName} logo`}
@@ -31,8 +47,8 @@ export default function TokenOnboardingPage() {
         </div>
       </div>
 
-      {/* Let the Wizard render the step chips */}
-      <Wizard />
+      {/* Pass the route token down to the Wizard */}
+      <Wizard token={token} />
     </div>
   );
 }
