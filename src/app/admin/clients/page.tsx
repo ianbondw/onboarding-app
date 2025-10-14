@@ -1,8 +1,8 @@
 // src/app/admin/clients/page.tsx
 import Link from "next/link";
 import { cookies } from "next/headers";
-import prisma from "@/lib/prisma";
-import { getAdvisorIdFromCookie } from "@/lib/session";
+import { prisma } from "../../../prisma";              // ✅ keep your current helper
+import { getAdvisorIdFromCookie } from "../../../lib/session"; // ✅ your current path
 import SentryInit from "./SentryInit";
 
 export const runtime = "nodejs";
@@ -16,10 +16,8 @@ export default async function AdminClients(props: any) {
   // Read cookies (sync)
   const jar = cookies();
 
-  // Owner cookie: set during /admin/login
-  // (If your owner cookie name differs, update below.)
-  const ownerCookie =
-    Boolean(jar.get("owner")?.value) || Boolean(jar.get("owner_admin")?.value);
+  // You were checking "admin_token" here; leaving as-is to match your current login/cookie logic.
+  const ownerCookie = Boolean(jar.get("admin_token")?.value);
 
   // Advisor cookie (JWT) → middleware writes from ?admin_token=...
   const advisorId = (await getAdvisorIdFromCookie()) || undefined;
@@ -34,8 +32,8 @@ export default async function AdminClients(props: any) {
           Unauthorized: missing or invalid admin token.
         </h1>
         <p className="text-sm text-gray-600">
-          Sign in at <code>/admin/login</code> (owner), or use your personalized
-          link containing <code>?admin_token=...</code> (advisor).
+          Sign in at <code>/admin/login</code> (owner), or use your personalized link containing{" "}
+          <code>?admin_token=...</code> (advisor).
         </p>
       </main>
     );
@@ -43,22 +41,12 @@ export default async function AdminClients(props: any) {
 
   const searchParams = props?.searchParams ?? {};
   const PAGE_SIZE = 20;
-  const pageRaw = Array.isArray(searchParams.page)
-    ? searchParams.page[0]
-    : searchParams.page;
-  const page =
-    Number.isFinite(Number(pageRaw)) && Number(pageRaw) > 0
-      ? Number(pageRaw)
-      : 1;
-  const q =
-    (Array.isArray(searchParams.q)
-      ? searchParams.q[0]
-      : searchParams.q)?.toString().trim() ?? "";
+  const pageRaw = Array.isArray(searchParams.page) ? searchParams.page[0] : searchParams.page;
+  const page = Number.isFinite(Number(pageRaw)) && Number(pageRaw) > 0 ? Number(pageRaw) : 1;
+  const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q)?.toString().trim() ?? "";
   const hasQ = q.length > 0;
 
-  const firmRaw = Array.isArray(searchParams.firm)
-    ? searchParams.firm[0]
-    : searchParams.firm;
+  const firmRaw = Array.isArray(searchParams.firm) ? searchParams.firm[0] : searchParams.firm;
   const firmCode: string | undefined = firmRaw ? String(firmRaw) : undefined;
 
   // ---------- Analytics ----------
@@ -73,9 +61,7 @@ export default async function AdminClients(props: any) {
     totalClients = await prisma.client.count({ where: baseWhere });
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    await prisma.client.count({
-      where: { ...baseWhere, createdAt: { gte: sevenDaysAgo } },
-    });
+    await prisma.client.count({ where: { ...baseWhere, createdAt: { gte: sevenDaysAgo } } });
 
     const recent = await prisma.client.findMany({
       where: baseWhere,
@@ -159,9 +145,7 @@ export default async function AdminClients(props: any) {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const riskEntries = Object.entries(riskMix).sort((a, b) => b[1] - a[1]);
-  const goalEntries = Object.entries(goalMix)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+  const goalEntries = Object.entries(goalMix).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const riskMax = Math.max(1, ...riskEntries.map(([, v]) => v));
   const goalMax = Math.max(1, ...goalEntries.map(([, v]) => v));
 
@@ -187,9 +171,7 @@ export default async function AdminClients(props: any) {
           <section className="grid gap-4 md:grid-cols-2">
             <Card title={`Risk Mix ${advisorId ? "(your clients)" : "(all advisors)"}`}>
               <div className="space-y-2">
-                {riskEntries.length === 0 && (
-                  <p className="text-sm text-slate-600">No data.</p>
-                )}
+                {riskEntries.length === 0 && <p className="text-sm text-slate-600">No data.</p>}
                 {riskEntries.map(([key, count]) => (
                   <Bar key={key} label={key} count={count} max={riskMax} />
                 ))}
@@ -197,9 +179,7 @@ export default async function AdminClients(props: any) {
             </Card>
             <Card title={`Top Goals ${advisorId ? "(your clients)" : "(all advisors)"}`}>
               <div className="space-y-2">
-                {goalEntries.length === 0 && (
-                  <p className="text-sm text-slate-600">No data.</p>
-                )}
+                {goalEntries.length === 0 && <p className="text-sm text-slate-600">No data.</p>}
                 {goalEntries.map(([key, count]) => (
                   <Bar key={key} label={key} count={count} max={goalMax} />
                 ))}
@@ -222,9 +202,7 @@ export default async function AdminClients(props: any) {
             </thead>
             <tbody>
               {rows.map((r) => {
-                const created = r?.createdAt
-                  ? new Date(r.createdAt).toLocaleString()
-                  : "";
+                const created = r?.createdAt ? new Date(r.createdAt).toLocaleString() : "";
                 const name = `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "(unnamed)";
                 const goals =
                   Array.isArray(r.primaryGoals) && r.primaryGoals.length > 0
@@ -253,23 +231,15 @@ export default async function AdminClients(props: any) {
         </div>
 
         <nav className="mt-2 flex items-center gap-2">
-          <span className="text-sm text-gray-600">
-            Page {page} of {totalPages}
-          </span>
+          <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
           <div className="ml-auto flex gap-2">
             {page > 1 && (
-              <Link
-                className="btn-secondary"
-                href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-              >
+              <Link className="btn-secondary" href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>
                 Prev
               </Link>
             )}
             {page < totalPages && (
-              <Link
-                className="btn-secondary"
-                href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-              >
+              <Link className="btn-secondary" href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>
                 Next
               </Link>
             )}
@@ -288,7 +258,6 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
     </div>
   );
 }
-
 function Bar({ label, count, max }: { label: string; count: number; max: number }) {
   const pct = Math.max(4, Math.round((count / Math.max(1, max)) * 100));
   return (
