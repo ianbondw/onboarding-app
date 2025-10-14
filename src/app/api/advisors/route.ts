@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     const ADMIN_ORIGIN = process.env.NEXT_PUBLIC_ADMIN_ORIGIN || "https://marengofinance-admin.com";
 
     const onboardingUrl = `${APP_ORIGIN}/onboarding/${encodeURIComponent(link.token)}`;
-    const adminUrl = `${ADMIN_ORIGIN}/admin/clients?admin_token=${encodeURIComponent(adminToken)}`;
+    const adminUrl = `${ADMIN_ORIGIN}/api/admin/accept?admin_token=${encodeURIComponent(adminToken)}&next=%2Fadmin%2Fclients`;
 
     // Also tag Sentry now that we know the advisorId
     setSentryTagsServer({ firmCode, advisorId: advisor.id });
