@@ -17,7 +17,7 @@ import {
   EXPERIENCE,
   ID_DOC_TYPES,
   computeNetWorthBand,
-} from "@/lib/validation";
+} from "@/lib/validations";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
