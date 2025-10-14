@@ -17,7 +17,8 @@ export default async function AdminClients(props: any) {
   const advisorId = await getAdvisorIdFromCookie();
 
   // Owner cookie (set by /api/admin/login after entering ADMIN_PASS)
-  const hasOwnerCookie = Boolean(cookieStore().get("admin_token")?.value);
+  const jar = await cookieStore(); // <-- await cookies() on Next 15
+  const hasOwnerCookie = Boolean(jar.get("admin_token")?.value);
   const ownerMode = hasOwnerCookie && !advisorId; // owner without advisor scope
 
   if (!advisorId && !ownerMode) {
@@ -55,12 +56,6 @@ export default async function AdminClients(props: any) {
 
   try {
     const baseWhere: any = ownerMode ? {} : { advisorId };
-
-    // Optional firm filter (owner mode only makes sense if you store advisor.firm)
-    // If you later add firm relationships, you can join via where: { advisor: { firm: firmCode } }
-    if (!ownerMode) {
-      // advisor-only view already scoped by advisorId
-    }
 
     totalClients = await prisma.client.count({ where: baseWhere });
 
