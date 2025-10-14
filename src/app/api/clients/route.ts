@@ -1,20 +1,9 @@
-import { setSentryTagsServer } from "@/lib/sentry-tags";
-// ...
-export async function POST(req: Request) {
-  const body = await req.json();
-  const firmCode = body?.firmCode ?? body?.firm ?? null;
-  const advisorId = body?.advisorId ?? null;
-  const clientId = body?.clientId ?? null;
-
-  setSentryTagsServer({ firmCode, advisorId, clientId });
-
-  // ...your existing save-client logic
-}
 // src/app/api/clients/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "../../../prisma";
 import { encryptToPackedBytes } from "../../../lib/crypto";
 import { Resend } from "resend";
+import { setSentryTagsServer } from "@/lib/sentry-tags";
 
 export async function POST(req: Request) {
   try {
@@ -25,9 +14,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing PII_ENC_KEY" }, { status: 500 });
     }
 
-    // Minimal parse (we removed the missing validation import)
+    // ---- Parse body once ----
     const parsed = await req.json();
 
+    // ---- Sentry tagging (safe/no-op if Sentry not configured) ----
+    const firmCode = parsed?.firmCode ?? parsed?.firm ?? null;
+    const advisorIdFromBody = parsed?.advisorId ?? null;
+    const clientIdFromBody = parsed?.clientId ?? null;
+    setSentryTagsServer({ firmCode, advisorId: advisorIdFromBody, clientId: clientIdFromBody });
+
+    // ---- Resolve advisorId (prefer intakeToken mapping) ----
     let resolvedAdvisorId: string | null = null;
 
     if (parsed.intakeToken) {
@@ -46,11 +42,17 @@ export async function POST(req: Request) {
       resolvedAdvisorId = parsed.advisorId;
     }
 
+    // ---- Optional PII pack (last-4 etc.) ----
     const ssnEnc =
-      parsed.ssn && parsed.ssn.trim().length > 0 ? encryptToPackedBytes(parsed.ssn.trim()) : null;
+      parsed.ssn && String(parsed.ssn).trim().length > 0
+        ? encryptToPackedBytes(String(parsed.ssn).trim())
+        : null;
     const dobEnc =
-      parsed.dob && parsed.dob.trim().length > 0 ? encryptToPackedBytes(parsed.dob.trim()) : null;
+      parsed.dob && String(parsed.dob).trim().length > 0
+        ? encryptToPackedBytes(String(parsed.dob).trim())
+        : null;
 
+    // ---- Create client (minimal fields; extend as needed) ----
     const created = await prisma.client.create({
       data: {
         firstName: parsed.firstName,
@@ -78,6 +80,7 @@ export async function POST(req: Request) {
       },
     });
 
+    // ---- Optional: email alert via Resend ----
     try {
       const resendKey = process.env.RESEND_API_KEY;
       const to = process.env.DEMO_ALERT_TO;
@@ -97,6 +100,7 @@ export async function POST(req: Request) {
       }
     } catch (e) {
       console.error("Resend email failed:", e);
+      // continue without failing the request
     }
 
     return NextResponse.json({ ok: true, client: created }, { status: 201 });
