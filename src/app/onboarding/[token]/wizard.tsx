@@ -252,7 +252,7 @@ export default function Wizard({ token }: { token: string }) {
                   [ASSET_BUCKETS.realEstate,  moneyify(realEstateBand)],
                   [ASSET_BUCKETS.otherAssets, moneyify(otherAssetsBand)],
                   [ASSET_BUCKETS.debts,       moneyify(debtsBand)],
-                  ["Estimated net worth", `$${formatBand(netWorthBand)}`],
+                  ["Estimated net worth", formatMoney(netWorthBand)],
                   ["Accounts", accounts.join(", ") || "—"],
                 ],
               },
@@ -355,7 +355,7 @@ function Select({
         <option value="">Select…</option>
         {options.map((o)=> (
           <option key={o} value={o}>
-            {money ? `$${formatBand(o)}` : o}
+            {money ? formatMoney(o) : o}
           </option>
         ))}
       </select>
@@ -454,15 +454,15 @@ function normalize(label: string): string {
     .toLowerCase();
 }
 
-// Format bands like "100-250k" => "100–250k", add $ sign
-function formatBand(band: string) {
+// Convert "100-250k" -> "$100–250k", "<100k" -> "<$100k"
+function formatMoney(band: string) {
   if (!band) return "";
   const s = band.replace(/-/g, "–");
-  if (s.startsWith("<")) return s.replace("<", "<$");
-  if (/^\d/.test(s)) return s.startsWith("$") ? s : `$${s}`;
+  if (s.startsWith("<")) return "<$" + s.slice(1);
+  if (/^\$/.test(s)) return s;         // already contains $
+  if (/^\d/.test(s)) return "$" + s;
   return s;
 }
-
 function moneyify(band: string) {
-  return band ? `$${formatBand(band).replace(/^\$/, "")}` : "—";
+  return band ? formatMoney(band) : "—";
 }
