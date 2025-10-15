@@ -132,7 +132,7 @@ export default function PilotPage() {
             </a>
           </div>
           <p className="mt-6 text-xs text-gray-500">
-            © {new Date().getFullYear()} Client Onboarding — Built by Ian Bond
+            © {new Date().getFullYear()} Client Onboarding
           </p>
         </section>
       </section>
