@@ -18,10 +18,13 @@ const ALLOWED = new Set([
   "complete",
 ]);
 
-export async function POST(req: NextRequest, ctx: { params: { id: string } }) {
+// NOTE: Some project configs expect a looser context type. Use `any`.
+export async function POST(req: NextRequest, context: any) {
   try {
-    const id = ctx.params?.id;
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const id = context?.params?.id as string | undefined;
+    if (!id) {
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    }
 
     const { status } = await req.json().catch(() => ({} as any));
     const s = String(status || "").toLowerCase();
