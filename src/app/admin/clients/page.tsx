@@ -19,7 +19,7 @@ export default async function AdminClients(props: any) {
   // Owner cookie (leave as-is to match your current login/cookie logic)
   const ownerCookie = Boolean(jar.get("admin_token")?.value);
 
-  // Advisor cookie (JWT) from middleware (?admin_token=...)
+  // Advisor cookie (JWT or raw id) from middleware/accept route
   const advisorId = (await getAdvisorIdFromCookie()) || undefined;
 
   // 🔒 If advisor cookie exists → ALWAYS scope to advisor (even if owner cookie also exists)
@@ -32,22 +32,37 @@ export default async function AdminClients(props: any) {
           Unauthorized: missing or invalid admin token.
         </h1>
         <p className="text-sm text-gray-600">
-          Sign in at <code>/admin/login</code> (owner), or use your personalized link containing{" "}
-          <code>?admin_token=...</code> (advisor).
+          Sign in at <code>/admin/login</code> (owner), or use your personalized
+          link containing <code>?admin_token=...</code> (advisor).
         </p>
       </main>
     );
   }
 
+  // Optional firm override from URL (?firm=...) still supported
   const searchParams = props?.searchParams ?? {};
+  const firmRaw = Array.isArray(searchParams.firm) ? searchParams.firm[0] : searchParams.firm;
+  const firmCodeParam: string | undefined = firmRaw ? String(firmRaw) : undefined;
+
+  // 🔎 NEW: pull advisor name/firm for header when advisor-scoped
+  let advisor: { name: string | null; firm: string | null } | null = null;
+  try {
+    if (advisorId) {
+      advisor = await prisma.advisor.findUnique({
+        where: { id: advisorId },
+        select: { name: true, firm: true },
+      });
+    }
+  } catch (e) {
+    console.error("ADMIN/CLIENTS advisor lookup error:", e);
+  }
+  const sentryFirmCode = advisor?.firm ?? firmCodeParam;
+
   const PAGE_SIZE = 20;
   const pageRaw = Array.isArray(searchParams.page) ? searchParams.page[0] : searchParams.page;
   const page = Number.isFinite(Number(pageRaw)) && Number(pageRaw) > 0 ? Number(pageRaw) : 1;
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q)?.toString().trim() ?? "";
   const hasQ = q.length > 0;
-
-  const firmRaw = Array.isArray(searchParams.firm) ? searchParams.firm[0] : searchParams.firm;
-  const firmCode: string | undefined = firmRaw ? String(firmRaw) : undefined;
 
   // ---------- Analytics ----------
   let totalClients = 0;
@@ -151,13 +166,24 @@ export default async function AdminClients(props: any) {
 
   return (
     <>
-      <SentryInit firmCode={firmCode} advisorId={advisorId} />
+      <SentryInit firmCode={sentryFirmCode} advisorId={advisorId} />
       <main className="mx-auto max-w-6xl p-6 space-y-6">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold">
-              Client Submissions {advisorId ? "(Your Clients)" : "(All Advisors)"}
-            </h1>
+            <div>
+              <h1 className="text-2xl font-semibold">
+                Client Submissions {advisorId ? "(Your Clients)" : "(All Advisors)"}
+              </h1>
+              {advisorId && (
+                <p className="text-sm text-gray-600">
+                  Advisor:&nbsp;
+                  <span className="font-medium text-gray-900">
+                    {advisor?.name ?? "Unknown"}
+                  </span>
+                  {advisor?.firm ? <span> — {advisor.firm}</span> : null}
+                </p>
+              )}
+            </div>
             <span className="text-sm text-gray-500">({total} total)</span>
           </div>
           <div className="ml-auto">
@@ -258,6 +284,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
     </div>
   );
 }
+
 function Bar({ label, count, max }: { label: string; count: number; max: number }) {
   const pct = Math.max(4, Math.round((count / Math.max(1, max)) * 100));
   return (
