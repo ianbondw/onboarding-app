@@ -8,10 +8,9 @@ export default function Home() {
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       {/* NAV */}
       <header className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="size-8 rounded-xl bg-black" />
-          <span className="font-semibold">Client Onboarding</span>
-        </div>
+      <div className="flex items-center">
+        <span className="text-sm font-medium">Client Onboarding</span>
+      </div>
         <nav className="hidden md:flex items-center gap-6 text-sm text-gray-600">
           <a href="#how" className="hover:text-gray-900">How it works</a>
           <a href="#security" className="hover:text-gray-900">Security</a>
