@@ -2,7 +2,7 @@
 export const runtime = "nodejs"; // Prisma needs Node runtime on Vercel
 
 import { NextResponse, NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "../../../../prisma";          // ✅ use your existing helper (no @/lib/prisma)
 import { setSentryTagsServer } from "@/lib/sentry-tags";
 
 /* ------------------------- Rate limiter (in-memory) ------------------------- */
