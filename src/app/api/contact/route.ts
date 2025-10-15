@@ -1,28 +1,31 @@
 // src/app/api/contact/route.ts
-export const runtime = "nodejs";
-import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
+import { NextResponse } from "next/server";
+import { sendMail } from "@/lib/mailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY || "");
-const TO = process.env.CONTACT_TO || "";      // e.g. "hello@marengofinance.com"
-const FROM = process.env.CONTACT_FROM || "";  // e.g. "Marengo <hello@marengofinance.com>"
+function isValidEmail(s: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
 
-export async function POST(req: NextRequest) {
-  try {
-    const { name, email, message, hp } = await req.json().catch(() => ({}));
-    if (hp) return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } }); // honeypot
-    if (!name || !email || !message) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  const { name, email, message, hp } = body || {};
 
-    await resend.emails.send({
-      to: TO,
-      from: FROM,
-      subject: "New contact form submission",
-      replyTo: email,
-      text: `From: ${name} <${email}>\n\n${message}`,
-    });
+  // Honeypot
+  if (hp) return NextResponse.json({ ok: true });
 
-    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
+  if (!name || !email || !message) {
+    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
+  if (!isValidEmail(email)) {
+    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+  }
+
+  await sendMail({
+    to: process.env.CONTACT_TO || "",
+    subject: "New contact form submission",
+    replyTo: email,
+    text: `From: ${name} <${email}>\n\n${message}`,
+  });
+
+  return NextResponse.json({ ok: true });
 }
