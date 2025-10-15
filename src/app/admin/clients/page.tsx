@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { prisma } from "../../../prisma";
 import { getAdvisorIdFromCookie } from "../../../lib/session";
 import SentryInit from "./SentryInit";
+import StatusCell from "./StatusCell"; // ← NEW
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export default async function AdminClients(props: any) {
   const firmRaw = Array.isArray(searchParams.firm) ? searchParams.firm[0] : searchParams.firm;
   const firmCodeParam: string | undefined = firmRaw ? String(firmRaw) : undefined;
 
-  // 🔎 NEW: pull advisor name/firm for header when advisor-scoped
+  // 🔎 pull advisor name/firm for header when advisor-scoped
   let advisor: { name: string | null; firm: string | null } | null = null;
   try {
     if (advisorId) {
@@ -112,6 +113,7 @@ export default async function AdminClients(props: any) {
     timeHorizon: true,
     primaryGoals: true,
     advisorId: true,
+    onboardingStatus: true, // ← NEW for StatusCell initial value
   } as const;
 
   try {
@@ -150,7 +152,7 @@ export default async function AdminClients(props: any) {
     return (
       <main className="mx-auto max-w-3xl p-6 space-y-4">
         <h1 className="text-2xl font-semibold">Client Submissions</h1>
-        <div className="p-3 rounded-md border border-red-200 bg-red-50 text-sm text-red-800">
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           <p className="font-medium">Server error while loading clients.</p>
           <pre className="mt-2 whitespace-pre-wrap">{errorMsg}</pre>
         </div>
@@ -162,12 +164,11 @@ export default async function AdminClients(props: any) {
   const riskEntries = Object.entries(riskMix).sort((a, b) => b[1] - a[1]);
   const goalEntries = Object.entries(goalMix).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const riskMax = Math.max(1, ...riskEntries.map(([, v]) => v));
-  const goalMax = Math.max(1, ...goalEntries.map(([, v]) => v));
 
   return (
     <>
       <SentryInit firmCode={sentryFirmCode} advisorId={advisorId} />
-      <main className="mx-auto max-w-6xl p-6 space-y-6">
+      <main className="mx-auto max-w-6xl space-y-6 p-6">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-3">
             <div>
@@ -206,42 +207,53 @@ export default async function AdminClients(props: any) {
             <Card title={`Top Goals ${advisorId ? "(your clients)" : "(all advisors)"}`}>
               <div className="space-y-2">
                 {goalEntries.length === 0 && <p className="text-sm text-slate-600">No data.</p>}
-                {goalEntries.map(([key, count]) => (
-                  <Bar key={key} label={key} count={count} max={goalMax} />
+                {goalEntries.map(([key]) => (
+                  <Bar key={key} label={key} count={goalMix[key]} max={goalMix[key]} />
                 ))}
               </div>
             </Card>
           </section>
         )}
 
-        <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr className="text-gray-700">
-                <th className="text-left p-2">Created</th>
-                <th className="text-left p-2">Name</th>
-                <th className="text-left p-2">Email</th>
-                <th className="text-left p-2">Risk</th>
-                <th className="text-left p-2">Goals</th>
-                <th className="text-left p-2">ID</th>
+                <th className="p-2 text-left">Created</th>
+                <th className="p-2 text-left">Name</th>
+                <th className="p-2 text-left">Email</th>
+                <th className="p-2 text-left">Risk</th>
+                <th className="p-2 text-left">Goals</th>
+                <th className="p-2 text-left">Status / Brief</th> {/* ← label updated */}
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => {
                 const created = r?.createdAt ? new Date(r.createdAt).toLocaleString() : "";
-                const name = `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "(unnamed)";
+                const name =
+                  `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "(unnamed)";
                 const goals =
                   Array.isArray(r.primaryGoals) && r.primaryGoals.length > 0
                     ? r.primaryGoals.join(", ")
                     : "—";
                 return (
-                  <tr key={r.id} className="border-t hover:bg-gray-50 transition">
+                  <tr key={r.id} className="transition border-t hover:bg-gray-50">
                     <td className="p-2">{created}</td>
                     <td className="p-2">{name}</td>
                     <td className="p-2">{r.email}</td>
                     <td className="p-2">{r.riskTolerance ?? "—"}</td>
                     <td className="p-2">{goals}</td>
-                    <td className="p-2 font-mono">{r.id}</td>
+                    <td className="p-2">
+                      <div className="flex items-center gap-2">
+                        <StatusCell
+                          id={r.id}
+                          initial={(r as any).onboardingStatus || null}
+                        />
+                        <Link className="link" href={`/admin/clients/${r.id}/brief`}>
+                          Brief
+                        </Link>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -257,15 +269,23 @@ export default async function AdminClients(props: any) {
         </div>
 
         <nav className="mt-2 flex items-center gap-2">
-          <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
+          <span className="text-sm text-gray-600">
+            Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+          </span>
           <div className="ml-auto flex gap-2">
             {page > 1 && (
-              <Link className="btn-secondary" href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>
+              <Link
+                className="btn-secondary"
+                href={`/admin/clients?page=${page - 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              >
                 Prev
               </Link>
             )}
-            {page < totalPages && (
-              <Link className="btn-secondary" href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}>
+            {page < Math.max(1, Math.ceil(total / PAGE_SIZE)) && (
+              <Link
+                className="btn-secondary"
+                href={`/admin/clients?page=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              >
                 Next
               </Link>
             )}
