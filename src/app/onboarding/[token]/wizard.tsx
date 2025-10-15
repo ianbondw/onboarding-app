@@ -76,6 +76,7 @@ export default function Wizard({ token }: { token: string }) {
   const illiquidAssetsBand = useMemo(() => combineTwo(realEstateBand, otherAssetsBand), [realEstateBand, otherAssetsBand]);
 
   const [err, setErr] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   function toggleMulti(list: string[], value: string, setter: (v: string[]) => void) {
     if (list.includes(value)) setter(list.filter(v => v !== value));
@@ -84,26 +85,46 @@ export default function Wizard({ token }: { token: string }) {
 
   async function onSubmit() {
     setErr("");
-    try {
-      const body = {
-        firstName, lastName, email, phone,
 
+    // ✅ Bulletproofing: require token and minimal identifiers before POST
+    if (!token || typeof token !== "string" || token.trim().length === 0) {
+      setErr("Missing intake token in URL. Please use your personalized link.");
+      return;
+    }
+    if (!firstName && !lastName && !email) {
+      setErr("Please provide at least a name or an email.");
+      return;
+    }
+    if (submitting) return;
+    setSubmitting(true);
+
+    try {
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      const body = {
+        // identifiers
+        fullName, firstName, lastName, email, phone,
+
+        // employment & income
         employmentStatus: normalize(employmentStatus),
         employerName,
         annualIncomeBand: normalize(annualIncomeBand),
-        sourceOfFunds: sourceOfFunds.join(", "),
+        sourceOfFunds: sourceOfFunds.join(", "), // keep your server expectations
 
+        // assets/liabilities & derived bands
         liquidAssetsBand,
         illiquidAssetsBand,
         liabilitiesBand: normalize(debtsBand),
         netWorthBand,
 
+        // account flags
         hasIRA: accounts.some(a => ["Roth IRA", "Traditional IRA"].includes(a)),
         has401k: accounts.includes("401(k)"),
         hasTaxable: accounts.includes("Brokerage"),
         hasCrypto: accounts.includes("Crypto"),
         hasRealEstate: accounts.includes("Real Estate"),
 
+        // goals & risk
         riskTolerance: normalize(riskTolerance),
         timeHorizon: normalize(timeHorizon),
         primaryGoals: primaryGoals.map(normalize),
@@ -111,7 +132,8 @@ export default function Wizard({ token }: { token: string }) {
         constraints: constraints.map(normalize),
         investmentExperience: normalize(investmentExperience),
 
-        ssn, // last-4 is okay for demo
+        // identity (demo)
+        ssn, // last-4 for demo
         idDocType: normalize(idDocType) || null,
         idDocUrl: idDocUrl || null,
 
@@ -121,24 +143,36 @@ export default function Wizard({ token }: { token: string }) {
       const res = await fetch(`/api/onboarding/${encodeURIComponent(token)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
         body: JSON.stringify(body),
       });
 
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j?.error || "Submission failed");
+        throw new Error(j?.error || `Submission failed (${res.status}).`);
       }
 
       alert("Submitted! Thanks.");
       window.location.href = "/";
     } catch (e: any) {
       setErr(e?.message || String(e));
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-4">
       <Stepper step={step} />
+
+      {/* Hard fail visible if token is absent */}
+      {!token && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          Error: No intake token detected. Please use the personalized link from your advisor.
+        </div>
+      )}
+
       {step === 0 && (
         <Card title="About you">
           <Grid>
@@ -147,7 +181,7 @@ export default function Wizard({ token }: { token: string }) {
             <Input label="Email"      value={email}     onChange={setEmail} type="email" required />
             <Input label="Phone"      value={phone}     onChange={setPhone} />
           </Grid>
-          <Nav step={step} setStep={setStep} canNext={!!firstName && !!lastName && !!email} />
+          <Nav step={step} setStep={setStep} canNext={!!(firstName && lastName && email)} />
         </Card>
       )}
 
@@ -159,7 +193,7 @@ export default function Wizard({ token }: { token: string }) {
             <Select label="Annual income (range)" value={annualIncomeBand} onChange={setAnnualIncomeBand} options={INCOME_RANGE} money required />
             <Multi label="Source of funds (select all that apply)" values={sourceOfFunds} onToggle={(v)=>toggleMulti(sourceOfFunds, v, setSourceOfFunds)} options={SOURCE_OF_FUNDS} />
           </Grid>
-          <Nav step={step} setStep={setStep} canNext={!!employmentStatus && !!annualIncomeBand} />
+          <Nav step={step} setStep={setStep} canNext={!!(employmentStatus && annualIncomeBand)} />
         </Card>
       )}
 
@@ -279,7 +313,9 @@ export default function Wizard({ token }: { token: string }) {
 
           <div className="mt-4 flex gap-2">
             <button className="btn-secondary" onClick={()=>setStep((s)=>((s-1) as Step))}>Back</button>
-            <button className="btn-primary" onClick={onSubmit}>Submit</button>
+            <button className="btn-primary" onClick={onSubmit} disabled={submitting || !token}>
+              {submitting ? "Submitting…" : "Submit"}
+            </button>
           </div>
 
           <details className="mt-4 text-xs text-slate-500">

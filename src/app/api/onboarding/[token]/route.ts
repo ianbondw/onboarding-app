@@ -2,6 +2,7 @@
 export const runtime = "nodejs"; // Prisma needs Node runtime on Vercel
 
 import { NextResponse, NextRequest } from "next/server";
+import prisma from "@/lib/prisma";
 import { setSentryTagsServer } from "@/lib/sentry-tags";
 
 /* ------------------------- Rate limiter (in-memory) ------------------------- */
@@ -35,12 +36,6 @@ function rateLimitOrThrow(req: Request, token: string) {
   b.count += 1;
 }
 /* --------------------------------------------------------------------------- */
-
-// Lazy import Prisma (same pattern you use elsewhere)
-async function getPrisma() {
-  const { PrismaClient } = await import("@prisma/client");
-  return new PrismaClient();
-}
 
 // Optional AES-256-GCM encryption for SSN (skips if PII_ENC_KEY is not set or invalid)
 const keyB64 = process.env.PII_ENC_KEY;
@@ -135,51 +130,86 @@ function matchProducts(input: {
   return recs;
 }
 
+function json(data: any, status = 200, extraHeaders: Record<string, string> = {}) {
+  return NextResponse.json(data, {
+    status,
+    headers: {
+      "Cache-Control": "no-store",
+      ...extraHeaders,
+    },
+  });
+}
+
 // ⚠️ Keep 2nd arg loose so Next.js validator is happy.
 export async function POST(req: NextRequest, context: any) {
   try {
     const { token } = context.params as { token: string };
-    if (!token) {
-      return NextResponse.json({ error: "Missing token" }, { status: 400 });
+    if (!token || typeof token !== "string" || token.trim().length === 0) {
+      return json({ error: "Missing or invalid token." }, 400);
     }
 
     // Rate limit first
     rateLimitOrThrow(req, token);
-
-    const prisma = await getPrisma();
 
     // ✅ Look up the advisor behind this intake token
     const intake = await prisma.intakeLink.findUnique({
       where: { token },
       select: { advisorId: true },
     });
+
     if (!intake?.advisorId) {
-      return NextResponse.json({ error: "Invalid or expired token" }, { status: 400 });
+      return json({ error: "Invalid or expired token." }, 404);
     }
     const advisorId = intake.advisorId;
 
     // Sentry tagging so you can trace issues by advisor/token
-    setSentryTagsServer({ advisorId, firmCode: null, clientId: token });
+    try {
+      setSentryTagsServer?.({ advisorId, firmCode: null, clientId: token });
+    } catch {
+      // optional
+    }
 
-    const body = await req.json();
+    // Safely parse JSON
+    let body: any = null;
+    try {
+      body = await req.json();
+    } catch {
+      return json({ error: "Invalid JSON body." }, 400);
+    }
 
     const {
-      firstName, lastName, email, phone, dateOfBirth, addressLine1, addressLine2, city, state, postalCode, country, citizenship,
+      // identifiers
+      fullName,
+      firstName, lastName, email, phone,
+      dateOfBirth, addressLine1, addressLine2, city, state, postalCode, country, citizenship,
+
+      // financial
       employmentStatus, employerName, annualIncomeBand, sourceOfFunds,
       liquidAssetsBand, illiquidAssetsBand, liabilitiesBand, netWorthBand,
       hasIRA, has401k, hasTaxable, hasCrypto, hasRealEstate,
+
+      // risk/goals
       riskTolerance, timeHorizon, primaryGoals, liquidityNeeds, constraints, investmentExperience,
-      ssn, idDocType, idDocUrl, proofOfAddressUrl, consentAccepted
+
+      // identity / docs
+      ssn, idDocType, idDocUrl, proofOfAddressUrl,
+      consentAccepted,
     } = body ?? {};
 
-    if (!firstName || !lastName || !email) {
-      return NextResponse.json({ error: "Missing required fields (firstName, lastName, email)" }, { status: 400 });
+    // Minimal but strict: require email (unique key) and some name signal
+    if (!email || typeof email !== "string") {
+      return json({ error: "Missing required field: email." }, 400);
     }
-
-    // Friendly email format check (optional but helpful)
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email))) {
-      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+    const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email));
+    if (!emailOk) {
+      return json({ error: "Please enter a valid email address." }, 400);
     }
+    const firstNameSafe = typeof firstName === "string" ? firstName : "";
+    const lastNameSafe  = typeof lastName  === "string" ? lastName  : "";
+    const nameFallback  = typeof fullName  === "string" ? fullName.trim() : "";
+    const [nf, nl]      = (!firstNameSafe && !lastNameSafe && nameFallback)
+      ? splitFullName(nameFallback)
+      : [firstNameSafe, lastNameSafe];
 
     const enc = await encryptPII(ssn);
     const consentAcceptedAt = consentAccepted ? new Date() : null;
@@ -192,7 +222,7 @@ export async function POST(req: NextRequest, context: any) {
         advisorId,
         email,
 
-        firstName, lastName, phone,
+        firstName: nf, lastName: nl, phone,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         addressLine1, addressLine2, city, state, postalCode, country, citizenship,
 
@@ -205,7 +235,8 @@ export async function POST(req: NextRequest, context: any) {
 
         riskTolerance, timeHorizon,
         primaryGoals: Array.isArray(primaryGoals) ? primaryGoals : [],
-        liquidityNeeds, constraints: Array.isArray(constraints) ? constraints : [],
+        liquidityNeeds,
+        constraints: Array.isArray(constraints) ? constraints : [],
         investmentExperience,
 
         idDocType, idDocUrl, proofOfAddressUrl,
@@ -213,7 +244,7 @@ export async function POST(req: NextRequest, context: any) {
         onboardingStatus: "in_progress",
       },
       update: {
-        firstName, lastName, phone,
+        firstName: nf, lastName: nl, phone,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         addressLine1, addressLine2, city, state, postalCode, country, citizenship,
 
@@ -223,7 +254,8 @@ export async function POST(req: NextRequest, context: any) {
 
         riskTolerance, timeHorizon,
         primaryGoals: Array.isArray(primaryGoals) ? primaryGoals : [],
-        liquidityNeeds, constraints: Array.isArray(constraints) ? constraints : [],
+        liquidityNeeds,
+        constraints: Array.isArray(constraints) ? constraints : [],
         investmentExperience,
 
         idDocType, idDocUrl, proofOfAddressUrl,
@@ -234,6 +266,7 @@ export async function POST(req: NextRequest, context: any) {
       select: { id: true },
     });
 
+    // Refresh product recs atomically to avoid duplicates on resubmits
     const recs = matchProducts({
       riskTolerance,
       timeHorizon,
@@ -245,29 +278,42 @@ export async function POST(req: NextRequest, context: any) {
       hasCrypto,
     });
 
-    if (recs.length) {
-      await prisma.productMatch.createMany({
-        data: recs.map(r => ({
-          clientId: client.id,
-          productCode: r.code,
-          productName: r.name,
-          rationale: r.rationale,
-          riskBand: r.risk ?? null,
-        }))
-      });
-    }
+    await prisma.$transaction([
+      prisma.productMatch.deleteMany({ where: { clientId: client.id } }),
+      ...(recs.length
+        ? [prisma.productMatch.createMany({
+            data: recs.map(r => ({
+              clientId: client.id,
+              productCode: r.code,
+              productName: r.name,
+              rationale: r.rationale,
+              riskBand: r.risk ?? null,
+            })),
+          })]
+        : []),
+    ]);
 
-    return NextResponse.json(
-      { ok: true, token, advisorId, clientId: client.id, recommendations: recs },
-      { status: 201 }
-    );
+    return json({ ok: true, token, advisorId, clientId: client.id, recommendations: recs }, 201);
   } catch (e: any) {
     const status = e?.status || 500;
     const extraHeaders = e?.headers || {};
-    console.error(e);
+    console.error("POST /api/onboarding/[token] error:", e);
     return new NextResponse(JSON.stringify({ error: e?.message || "Server error" }), {
       status,
-      headers: { "Content-Type": "application/json", ...extraHeaders },
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...extraHeaders },
     });
   }
+}
+
+export async function GET() {
+  return json({ error: "Method not allowed." }, 405);
+}
+
+/* ----------------------------- Local utilities ----------------------------- */
+function splitFullName(name: string): [string, string] {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0) return ["", ""];
+  if (parts.length === 1) return [parts[0], ""];
+  const last = parts.pop() as string;
+  return [parts.join(" "), last];
 }

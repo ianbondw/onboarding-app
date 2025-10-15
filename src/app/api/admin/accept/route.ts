@@ -1,4 +1,6 @@
 // src/app/api/admin/accept/route.ts
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { verifyAdvisorToken } from "@/lib/jwt";
 
@@ -11,13 +13,17 @@ export async function GET(req: Request) {
   const next = url.searchParams.get("next") || "/admin/clients";
 
   try {
-    const payload: any = verifyAdvisorToken(token); // throws if invalid
-    const advisorId = payload?.advisorId || payload?.sub || payload?.id;
+    // verifyAdvisorToken returns { advisorId } or null
+    const payload = verifyAdvisorToken(token);
+    const advisorId = (payload as any)?.advisorId || (payload as any)?.sub || (payload as any)?.id;
     if (!advisorId) throw new Error("Invalid advisor token");
 
-    const res = NextResponse.redirect(new URL(next, url.origin));
+    const location = new URL(next, url.origin);
 
-    // set advisor scope cookie (stores advisorId directly)
+    const res = NextResponse.redirect(location, { status: 303 });
+    res.headers.set("Cache-Control", "no-store");
+
+    // Store advisor scope (ID is fine; your session helper handles raw ID or JWT)
     res.cookies.set({
       name: ADVISOR_COOKIE,
       value: advisorId,
@@ -25,10 +31,10 @@ export async function GET(req: Request) {
       sameSite: "lax",
       secure: true,
       path: "/",
-      maxAge: 60 * 60 * 24 * 180,
+      maxAge: 60 * 60 * 24 * 180, // 180 days
     });
 
-    // clear owner cookie so we don’t show all advisors by accident
+    // Clear owner cookie to prevent "All Advisors" mode
     res.cookies.set({
       name: OWNER_COOKIE,
       value: "",
@@ -41,6 +47,6 @@ export async function GET(req: Request) {
 
     return res;
   } catch {
-    return NextResponse.json({ error: "Invalid admin_token" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid admin_token" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
 }
