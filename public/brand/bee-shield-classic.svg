@@ -1,0 +1,28 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-label="Bee in Shield — Classic">
+  <path d="M40 70v30c0 38 27 58 60 70c33-12 60-32 60-70V70L100 45 40 70z"
+        fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="currentColor">
+    <path d="M92 66q-10-10-22-10" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+    <path d="M108 66q10-10 22-10"  fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="100" cy="76" r="9"/>
+    <path d="M100 92 C 94 82, 84 78, 70 78 C 49 78, 47 98, 68 110 C 82 118, 92 111, 100 100 Z"/>
+    <path d="M100 92 C 106 82, 116 78, 130 78 C 151 78, 153 98, 132 110 C 118 118, 108 111, 100 100 Z"/>
+    <path d="M100 118 C 93 116, 86 118, 80 122 C 66 130, 68 140, 84 138 C 92 136, 97 128, 100 124 Z"/>
+    <path d="M100 118 C 107 116, 114 118, 120 122 C 134 130, 132 140, 116 138 C 108 136, 103 128, 100 124 Z"/>
+    <ellipse cx="100" cy="98" rx="16" ry="11"/>
+    <defs>
+      <mask id="abdomenClassic">
+        <rect width="200" height="200" fill="black"/>
+        <ellipse cx="100" cy="120" rx="22" ry="15" fill="white"/>
+        <g fill="none" stroke="black" stroke-width="7" stroke-linecap="round">
+          <path d="M82 115 q18 8 36 0"/>
+          <path d="M80 122 q20 8 40 0"/>
+          <path d="M84 130 q16 7 32 0"/>
+        </g>
+      </mask>
+    </defs>
+    <ellipse cx="100" cy="120" rx="22" ry="15" mask="url(#abdomenClassic)"/>
+    <ellipse cx="100" cy="138" rx="18" ry="11"/>
+    <path d="M100 150 l6 10 h-12 Z"/>
+  </g>
+</svg>
