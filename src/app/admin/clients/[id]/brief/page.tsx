@@ -18,15 +18,13 @@ function Value({ children }: { children: React.ReactNode }) {
   return <dd className="font-medium text-slate-900">{children ?? "—"}</dd>;
 }
 
-export default async function ClientBrief({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function ClientBrief(props: { params: Promise<{ id: string }> }) {
+  // In this project setup, `params` is a Promise — await it:
+  const { id } = await props.params;
+
   const prisma = await getPrisma();
   const advisorId = await getAdvisorIdFromCookie();
-
-  const where: any = advisorId ? { id: params.id, advisorId } : { id: params.id };
+  const where: any = advisorId ? { id, advisorId } : { id };
 
   const client = await prisma.client.findFirst({
     where,
@@ -78,7 +76,7 @@ export default async function ClientBrief({
   const name = `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim();
 
   return (
-    <main className="mx-auto max-w-3xl p-6 space-y-6 bg-white rounded-2xl border shadow-sm">
+    <main className="mx-auto max-w-3xl space-y-6 rounded-2xl border bg-white p-6 shadow-sm">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Client Brief</h1>
         <div className="flex items-center gap-2">
