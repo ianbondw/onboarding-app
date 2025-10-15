@@ -28,4 +28,10 @@ export async function POST(req: Request) {
   });
 
   return NextResponse.json({ ok: true });
+
+  // at bottom of src/app/api/contact/route.ts
+import { NextResponse } from "next/server";
+export async function GET() {
+  return NextResponse.json({ ok: false, error: "Use POST /api/contact" }, { status: 405 });
+
 }

@@ -1,163 +1,192 @@
-// src/app/admin/clients/[id]/brief/page.tsx
-import Link from "next/link";
+import { notFound } from "next/navigation";
+import PrintButton from "./PrintButton";
+// If your Prisma helper is at project root as in your API routes, change to:
+// import { prisma } from "../../../../../prisma";
+import { prisma } from "@/lib/prisma";
 import { getAdvisorIdFromCookie } from "@/lib/session";
 
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Lazy Prisma import */
-async function getPrisma() {
-  const { PrismaClient } = await import("@prisma/client");
-  return new PrismaClient();
-}
+type PageProps = { params: { id: string } };
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <dt className="text-slate-600">{children}</dt>;
-}
-function Value({ children }: { children: React.ReactNode }) {
-  return <dd className="font-medium text-slate-900">{children ?? "—"}</dd>;
-}
+export default async function ClientBriefPage({ params }: PageProps) {
+  const clientId = params?.id?.trim();
+  if (!clientId) notFound();
 
-export default async function ClientBrief(props: { params: Promise<{ id: string }> }) {
-  // In this project setup, `params` is a Promise — await it:
-  const { id } = await props.params;
-
-  const prisma = await getPrisma();
   const advisorId = await getAdvisorIdFromCookie();
-  const where: any = advisorId ? { id, advisorId } : { id };
-
-  const client = await prisma.client.findFirst({
-    where,
-    select: {
-      id: true,
-      createdAt: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      phone: true,
-
-      employmentStatus: true,
-      employerName: true,
-      annualIncomeBand: true,
-
-      liquidAssetsBand: true,
-      illiquidAssetsBand: true,
-      liabilitiesBand: true,
-      netWorthBand: true,
-
-      riskTolerance: true,
-      timeHorizon: true,
-      primaryGoals: true,
-      liquidityNeeds: true,
-      constraints: true,
-      investmentExperience: true,
-
-      onboardingStatus: true,
-      consentAcceptedAt: true,
-    },
-  });
-
-  if (!client) {
-    return (
-      <main className="mx-auto max-w-3xl p-6">
-        <h1 className="text-2xl font-semibold text-red-700">Client not found</h1>
-        <p className="mt-2 text-sm">
-          You may not have access to this record, or it doesn’t exist.
-        </p>
-        <p className="mt-4">
-          <Link className="link" href="/admin/clients">
-            ← Back to clients
-          </Link>
-        </p>
-      </main>
-    );
+  if (!advisorId) {
+    // Not authenticated for an advisor; hide details
+    notFound();
   }
 
-  const name = `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim();
+  // Fetch the client scoped to the logged-in advisor, plus matches
+  const [client, matches] = await prisma.$transaction([
+    prisma.client.findFirst({
+      where: { id: clientId, advisorId },
+      select: {
+        id: true,
+        advisorId: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        dateOfBirth: true,
+        addressLine1: true,
+        addressLine2: true,
+        city: true,
+        state: true,
+        postalCode: true,
+        country: true,
+        citizenship: true,
+        employmentStatus: true,
+        employerName: true,
+        annualIncomeBand: true,
+        sourceOfFunds: true,
+        liquidAssetsBand: true,
+        illiquidAssetsBand: true,
+        liabilitiesBand: true,
+        netWorthBand: true,
+        hasIRA: true,
+        has401k: true,
+        hasTaxable: true,
+        hasCrypto: true,
+        hasRealEstate: true,
+        riskTolerance: true,
+        timeHorizon: true,
+        primaryGoals: true,
+        liquidityNeeds: true,
+        constraints: true,
+        investmentExperience: true,
+        consentAcceptedAt: true,
+        onboardingStatus: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.productMatch.findMany({
+      where: { clientId: clientId },
+      select: {
+        productCode: true,
+        productName: true,
+        rationale: true,
+        riskBand: true,
+      },
+      orderBy: { productCode: "asc" },
+    }),
+  ]);
+
+  if (!client) {
+    // Either client doesn't exist or belongs to a different advisor
+    notFound();
+  }
+
+  const fullName = [client.firstName, client.lastName].filter(Boolean).join(" ") || "(Unnamed)";
+  const fmt = (d?: Date | null) => (d ? new Date(d).toLocaleDateString() : "—");
+  const yesNo = (b?: boolean | null) => (b ? "Yes" : "No");
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 rounded-2xl border bg-white p-6 shadow-sm">
-      <div className="flex items-center justify-between">
+    <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+      <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Client Brief</h1>
-        <div className="flex items-center gap-2">
-          <button
-            className="btn-secondary"
-            onClick={() => (typeof window !== "undefined" ? window.print() : null)}
-          >
-            Print
-          </button>
-          <Link className="btn-secondary" href="/admin/clients">
-            Back
-          </Link>
+        <div className="flex gap-2">
+          <PrintButton />
         </div>
-      </div>
+      </header>
 
-      <section>
-        <div className="text-sm text-slate-600">
-          Created: {client.createdAt?.toLocaleString?.() || String(client.createdAt)}
-          {" · "}Status:{" "}
-          <span className="font-medium">{client.onboardingStatus || "new"}</span>
-          {client.consentAcceptedAt ? (
-            <>
-              {" · "}Consent:{" "}
-              <span className="font-medium">
-                {new Date(client.consentAcceptedAt).toLocaleString()}
-              </span>
-            </>
-          ) : null}
+      <section className="rounded-2xl border p-5 space-y-1">
+        <h2 className="text-lg font-medium">{fullName}</h2>
+        <p className="text-sm text-gray-600">{client.email || "No email provided"}</p>
+        {client.phone && <p className="text-sm text-gray-600">{client.phone}</p>}
+        <p className="text-sm">
+          {[
+            client.addressLine1,
+            client.addressLine2,
+            [client.city, client.state].filter(Boolean).join(", "),
+            client.postalCode,
+            client.country,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+        <div className="text-sm text-gray-600">
+          <span>DOB: {fmt(client.dateOfBirth)}</span>
+          <span className="mx-2">•</span>
+          <span>Citizenship: {client.citizenship || "—"}</span>
+        </div>
+        <div className="text-sm text-gray-600">
+          <span>Status: {client.onboardingStatus || "in_progress"}</span>
+          <span className="mx-2">•</span>
+          <span>Consent: {fmt(client.consentAcceptedAt)}</span>
+        </div>
+        <div className="text-xs text-gray-500">
+          <span>Created: {fmt(client.createdAt)}</span>
+          <span className="mx-2">•</span>
+          <span>Updated: {fmt(client.updatedAt)}</span>
         </div>
       </section>
 
-      <section className="grid gap-6 sm:grid-cols-2">
-        <div className="rounded-xl border p-4">
-          <div className="mb-2 text-sm font-semibold">Contact</div>
-          <dl className="grid gap-y-2">
-            <Label>Name</Label> <Value>{name || "—"}</Value>
-            <Label>Email</Label> <Value>{client.email}</Value>
-            <Label>Phone</Label> <Value>{client.phone}</Value>
-          </dl>
+      <section className="rounded-2xl border p-5 space-y-2">
+        <h3 className="font-medium">Profile</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+          <div><span className="text-gray-500">Employment: </span>{client.employmentStatus || "—"}</div>
+          <div><span className="text-gray-500">Employer: </span>{client.employerName || "—"}</div>
+          <div><span className="text-gray-500">Annual Income: </span>{client.annualIncomeBand || "—"}</div>
+          <div><span className="text-gray-500">Source of Funds: </span>{client.sourceOfFunds || "—"}</div>
+          <div><span className="text-gray-500">Liquid Assets: </span>{client.liquidAssetsBand || "—"}</div>
+          <div><span className="text-gray-500">Illiquid Assets: </span>{client.illiquidAssetsBand || "—"}</div>
+          <div><span className="text-gray-500">Liabilities: </span>{client.liabilitiesBand || "—"}</div>
+          <div><span className="text-gray-500">Net Worth: </span>{client.netWorthBand || "—"}</div>
+          <div><span className="text-gray-500">IRA: </span>{yesNo(client.hasIRA)}</div>
+          <div><span className="text-gray-500">401(k): </span>{yesNo(client.has401k)}</div>
+          <div><span className="text-gray-500">Taxable: </span>{yesNo(client.hasTaxable)}</div>
+          <div><span className="text-gray-500">Crypto: </span>{yesNo(client.hasCrypto)}</div>
+          <div><span className="text-gray-500">Real Estate: </span>{yesNo(client.hasRealEstate)}</div>
         </div>
+      </section>
 
-        <div className="rounded-xl border p-4">
-          <div className="mb-2 text-sm font-semibold">Work & Income</div>
-          <dl className="grid gap-y-2">
-            <Label>Employment</Label> <Value>{client.employmentStatus}</Value>
-            <Label>Employer</Label> <Value>{client.employerName}</Value>
-            <Label>Income</Label> <Value>{client.annualIncomeBand}</Value>
-          </dl>
+      <section className="rounded-2xl border p-5 space-y-2">
+        <h3 className="font-medium">Investment Profile</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+          <div><span className="text-gray-500">Risk Tolerance: </span>{client.riskTolerance || "—"}</div>
+          <div><span className="text-gray-500">Time Horizon: </span>{client.timeHorizon || "—"}</div>
+          <div className="md:col-span-2">
+            <span className="text-gray-500">Primary Goals: </span>
+            {Array.isArray(client.primaryGoals) && client.primaryGoals.length
+              ? client.primaryGoals.join(", ")
+              : "—"}
+          </div>
+          <div className="md:col-span-2">
+            <span className="text-gray-500">Liquidity Needs: </span>
+            {client.liquidityNeeds || "—"}
+          </div>
+          <div className="md:col-span-2">
+            <span className="text-gray-500">Constraints: </span>
+            {Array.isArray(client.constraints) && client.constraints.length
+              ? client.constraints.join(", ")
+              : "—"}
+          </div>
+          <div className="md:col-span-2">
+            <span className="text-gray-500">Experience: </span>
+            {client.investmentExperience || "—"}
+          </div>
         </div>
+      </section>
 
-        <div className="rounded-xl border p-4">
-          <div className="mb-2 text-sm font-semibold">Assets</div>
-          <dl className="grid gap-y-2">
-            <Label>Liquid assets</Label> <Value>{client.liquidAssetsBand}</Value>
-            <Label>Illiquid assets</Label> <Value>{client.illiquidAssetsBand}</Value>
-            <Label>Liabilities</Label> <Value>{client.liabilitiesBand}</Value>
-            <Label>Estimated net worth</Label> <Value>{client.netWorthBand}</Value>
-          </dl>
-        </div>
-
-        <div className="rounded-xl border p-4">
-          <div className="mb-2 text-sm font-semibold">Goals & Risk</div>
-          <dl className="grid gap-y-2">
-            <Label>Risk tolerance</Label> <Value>{client.riskTolerance}</Value>
-            <Label>Time horizon</Label> <Value>{client.timeHorizon}</Value>
-            <Label>Primary goals</Label>{" "}
-            <Value>
-              {Array.isArray(client.primaryGoals) && client.primaryGoals.length
-                ? client.primaryGoals.join(", ")
-                : "—"}
-            </Value>
-            <Label>Liquidity needs</Label> <Value>{client.liquidityNeeds}</Value>
-            <Label>Constraints</Label>{" "}
-            <Value>
-              {Array.isArray(client.constraints) && client.constraints.length
-                ? client.constraints.join(", ")
-                : "—"}
-            </Value>
-            <Label>Experience</Label> <Value>{client.investmentExperience}</Value>
-          </dl>
-        </div>
+      <section className="rounded-2xl border p-5 space-y-2">
+        <h3 className="font-medium">Recommended Products</h3>
+        {matches.length === 0 ? (
+          <p className="text-sm text-gray-600">No recommendations yet.</p>
+        ) : (
+          <ul className="list-disc pl-5 space-y-1 text-sm">
+            {matches.map((m) => (
+              <li key={m.productCode}>
+                <span className="font-medium">{m.productName}</span>
+                {m.riskBand ? <span className="text-gray-500"> — {m.riskBand}</span> : null}
+                <div className="text-gray-600">{m.rationale}</div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </main>
   );

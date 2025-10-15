@@ -4,6 +4,7 @@ export const runtime = "nodejs"; // Prisma needs Node runtime on Vercel
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "../../../../prisma";          // ✅ use your existing helper (no @/lib/prisma)
 import { setSentryTagsServer } from "@/lib/sentry-tags";
+import { sendMail } from "@/lib/mailer";              // ✅ notify advisor on successful submission
 
 /* ------------------------- Rate limiter (in-memory) ------------------------- */
 const RATE_BUCKETS = new Map<string, { count: number; resetAt: number }>();
@@ -292,6 +293,22 @@ export async function POST(req: NextRequest, context: any) {
           })]
         : []),
     ]);
+
+    // ✅ Advisor notification (non-blocking if email config is missing)
+    try {
+      const dashboardUrl =
+        (process.env.NEXT_PUBLIC_ADMIN_ORIGIN || "https://marengofinance-admin.com") + "/admin/clients";
+      await sendMail({
+        to: process.env.CONTACT_TO || "", // later: replace with advisor email from DB when available
+        subject: "New client submission",
+        text: `A client submitted for advisor ${advisorId}.
+Client ID: ${client.id}
+Dashboard: ${dashboardUrl}`,
+      });
+    } catch (mailErr) {
+      // Never fail the intake on email issues
+      console.warn("Advisor notify email failed (safe to ignore):", mailErr);
+    }
 
     return json({ ok: true, token, advisorId, clientId: client.id, recommendations: recs }, 201);
   } catch (e: any) {
