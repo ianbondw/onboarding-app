@@ -81,21 +81,30 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
   const fmt = (d?: Date | null) => (d ? new Date(d).toLocaleDateString() : "—");
   const yesNo = (b?: boolean | null) => (b ? "Yes" : "No");
 
-  // Build data for GoalGrid (goalsDetail preferred; fallback to primaryGoals with overall settings)
-  const rawGoalsDetail = (client as any).goalsDetail as
-    | Record<string, { risk?: string; horizon?: string; amountBand?: string; priority?: boolean; liquidity?: string }>
-    | null;
+  // ---- Type-safe per-goal map (ensure optional fields exist on the type) ----
+  type GoalDetail = {
+    risk?: string;
+    horizon?: string;
+    amountBand?: string;
+    priority?: boolean;
+    liquidity?: string;
+  };
 
-  const goalsDetailForGrid =
+  const rawGoalsDetail = (client as any).goalsDetail as Record<string, GoalDetail> | null;
+
+  const goalsDetailForGrid: Record<string, GoalDetail> =
     rawGoalsDetail && Object.keys(rawGoalsDetail).length > 0
-      ? rawGoalsDetail
+      ? (rawGoalsDetail as Record<string, GoalDetail>)
       : Array.isArray(client.primaryGoals)
-      ? Object.fromEntries(
+      ? (Object.fromEntries(
           client.primaryGoals.map((g) => [
             g,
-            { risk: client.riskTolerance || "moderate", horizon: client.timeHorizon || "5-10y" },
+            {
+              risk: client.riskTolerance || "moderate",
+              horizon: client.timeHorizon || "5-10y",
+            } as GoalDetail,
           ])
-        )
+        ) as Record<string, GoalDetail>)
       : {};
 
   const perGoalKeys =
@@ -310,9 +319,3 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
     </main>
   );
 }
-
-
-
-
-
-
