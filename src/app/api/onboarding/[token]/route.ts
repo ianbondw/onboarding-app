@@ -140,6 +140,10 @@ function json(data: any, status = 200, extraHeaders: Record<string, string> = {}
   });
 }
 
+function isPlainObject(v: unknown): v is Record<string, any> {
+  return !!v && Object.prototype.toString.call(v) === "[object Object]";
+}
+
 // ⚠️ Keep 2nd arg loose so Next.js validator is happy.
 export async function POST(req: NextRequest, context: any) {
   try {
@@ -191,12 +195,15 @@ export async function POST(req: NextRequest, context: any) {
       // risk/goals
       riskTolerance, timeHorizon, primaryGoals, liquidityNeeds, constraints, investmentExperience,
 
+      // per-goal detail
+      goalsDetail,
+
       // identity / docs
       ssn, idDocType, idDocUrl, proofOfAddressUrl,
       consentAccepted,
 
-      // narratives
-      introNarrative, goalsNarrative, concernsNarrative, // ← store next-topic in concernsNarrative
+      // narratives (store next-topic in concernsNarrative)
+      introNarrative, goalsNarrative, concernsNarrative,
     } = body ?? {};
 
     // Minimal but strict: require email (unique key) and some name signal
@@ -216,6 +223,9 @@ export async function POST(req: NextRequest, context: any) {
 
     const enc = await encryptPII(ssn);
     const consentAcceptedAt = consentAccepted ? new Date() : null;
+
+    // sanitize goalsDetail to a plain object (or null)
+    const goalsDetailJson = isPlainObject(goalsDetail) ? goalsDetail : null;
 
     // 🔗 UPSERT the client **scoped to this advisor**
     const client = await prisma.client.upsert({
@@ -241,6 +251,9 @@ export async function POST(req: NextRequest, context: any) {
         constraints: Array.isArray(constraints) ? constraints : [],
         investmentExperience,
 
+        // per-goal detail
+        goalsDetail: goalsDetailJson,
+
         // narratives
         introNarrative: introNarrative ?? null,
         goalsNarrative: goalsNarrative ?? null,
@@ -264,6 +277,9 @@ export async function POST(req: NextRequest, context: any) {
         liquidityNeeds,
         constraints: Array.isArray(constraints) ? constraints : [],
         investmentExperience,
+
+        // per-goal detail
+        goalsDetail: goalsDetailJson,
 
         // narratives
         introNarrative: introNarrative ?? null,

@@ -57,6 +57,9 @@ model Client {
   constraints          String[]  // [no_leverage, esg_only]
   investmentExperience String?   // none | basic | intermediate | advanced
 
+  // Per-goal fine-tuning (risk/horizon/liquidity keyed by goal)
+  goalsDetail        Json?
+
   // Narratives (optional, “warmer” free text)
   introNarrative     String?
   goalsNarrative     String?
