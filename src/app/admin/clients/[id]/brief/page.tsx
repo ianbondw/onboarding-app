@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
-// ✅ Use your existing helper at src/app/prisma.ts
-import { prisma } from "../../../../prisma";
+import { prisma } from "../../../../prisma";      // ✅ relative import
 import { getAdvisorIdFromCookie } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
