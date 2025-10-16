@@ -224,8 +224,8 @@ export async function POST(req: NextRequest, context: any) {
     const enc = await encryptPII(ssn);
     const consentAcceptedAt = consentAccepted ? new Date() : null;
 
-    // sanitize goalsDetail to a plain object (or null)
-    const goalsDetailJson = isPlainObject(goalsDetail) ? goalsDetail : null;
+    // Only include JSON when it's a plain object; otherwise omit the field.
+    const goalsDetailInput = isPlainObject(goalsDetail) ? goalsDetail : undefined;
 
     // 🔗 UPSERT the client **scoped to this advisor**
     const client = await prisma.client.upsert({
@@ -252,7 +252,7 @@ export async function POST(req: NextRequest, context: any) {
         investmentExperience,
 
         // per-goal detail
-        goalsDetail: goalsDetailJson,
+        goalsDetail: goalsDetailInput,
 
         // narratives
         introNarrative: introNarrative ?? null,
@@ -279,7 +279,7 @@ export async function POST(req: NextRequest, context: any) {
         investmentExperience,
 
         // per-goal detail
-        goalsDetail: goalsDetailJson,
+        goalsDetail: goalsDetailInput,
 
         // narratives
         introNarrative: introNarrative ?? null,
