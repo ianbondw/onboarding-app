@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
 import { prisma } from "@/prisma";
 import { getAdvisorIdFromCookie } from "@/lib/session";
+import GoalGrid from "@/components/GoalGrid";
 
 export const dynamic = "force-dynamic";
 
@@ -34,53 +35,41 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
         postalCode: true,
         country: true,
         citizenship: true,
-
         employmentStatus: true,
         employerName: true,
         annualIncomeBand: true,
         sourceOfFunds: true,
-
         liquidAssetsBand: true,
         illiquidAssetsBand: true,
         liabilitiesBand: true,
         netWorthBand: true,
-
         hasIRA: true,
         has401k: true,
         hasTaxable: true,
         hasCrypto: true,
         hasRealEstate: true,
-
         riskTolerance: true,
         timeHorizon: true,
         primaryGoals: true,
         liquidityNeeds: true,
         constraints: true,
         investmentExperience: true,
-
-        // Narratives (show the “warmth” text if present)
-        introNarrative: true,
-        goalsNarrative: true,
         concernsNarrative: true,
-
+        goalsDetail: true, // per-goal JSON source of truth
         consentAcceptedAt: true,
         onboardingStatus: true,
+        onboardingProgress: true, // show progress bar on Brief
         createdAt: true,
         updatedAt: true,
       },
     }),
     prisma.productMatch.findMany({
-      where: { clientId: clientId },
-      select: {
-        productCode: true,
-        productName: true,
-        rationale: true,
-        riskBand: true,
-      },
+      where: { clientId },
+      select: { productCode: true, productName: true, rationale: true, riskBand: true },
       orderBy: { productCode: "asc" },
     }),
     prisma.clientFieldFlag.findMany({
-      where: { clientId: clientId, advisorId, status: "open" },
+      where: { clientId, advisorId, status: "open" },
       select: { id: true, fieldKey: true, note: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     }),
@@ -88,10 +77,33 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
 
   if (!client) notFound();
 
-  const fullName =
-    [client.firstName, client.lastName].filter(Boolean).join(" ") || "(Unnamed)";
+  const fullName = [client.firstName, client.lastName].filter(Boolean).join(" ") || "(Unnamed)";
   const fmt = (d?: Date | null) => (d ? new Date(d).toLocaleDateString() : "—");
   const yesNo = (b?: boolean | null) => (b ? "Yes" : "No");
+
+  // Build data for GoalGrid (goalsDetail preferred; fallback to primaryGoals with overall settings)
+  const rawGoalsDetail = (client as any).goalsDetail as
+    | Record<string, { risk?: string; horizon?: string; amountBand?: string; priority?: boolean; liquidity?: string }>
+    | null;
+
+  const goalsDetailForGrid =
+    rawGoalsDetail && Object.keys(rawGoalsDetail).length > 0
+      ? rawGoalsDetail
+      : Array.isArray(client.primaryGoals)
+      ? Object.fromEntries(
+          client.primaryGoals.map((g) => [
+            g,
+            { risk: client.riskTolerance || "moderate", horizon: client.timeHorizon || "5-10y" },
+          ])
+        )
+      : {};
+
+  const perGoalKeys =
+    Object.keys(goalsDetailForGrid).length > 0
+      ? Object.keys(goalsDetailForGrid)
+      : Array.isArray(client.primaryGoals)
+      ? client.primaryGoals
+      : [];
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
@@ -101,6 +113,26 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
           <PrintButton />
         </div>
       </header>
+
+      {/* Progress bar */}
+      {typeof client.onboardingProgress === "number" && (
+        <section className="rounded-2xl border p-4">
+          <div className="mb-1 text-sm font-medium">Onboarding Progress</div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-2 rounded bg-gray-200">
+              <div
+                className="h-2 rounded bg-black"
+                style={{
+                  width: `${Math.min(100, Math.max(0, client.onboardingProgress ?? 0))}%`,
+                }}
+              />
+            </div>
+            <span className="text-xs tabular-nums">
+              {Math.min(100, Math.max(0, client.onboardingProgress ?? 0))}%
+            </span>
+          </div>
+        </section>
+      )}
 
       <section className="rounded-2xl border p-5 space-y-1">
         <h2 className="text-lg font-medium">{fullName}</h2>
@@ -134,6 +166,29 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
         </div>
       </section>
 
+      {/* Plan at a glance: visual grid of goals */}
+      <section className="rounded-2xl border p-5 space-y-2">
+        <h3 className="font-medium">Plan at a glance</h3>
+        <GoalGrid goalsDetail={goalsDetailForGrid as any} />
+      </section>
+
+      {/* Topics for next meeting */}
+      <section className="rounded-2xl border p-5 space-y-2">
+        <h3 className="font-medium">Topics for next meeting</h3>
+        {client.concernsNarrative ? (
+          <div className="whitespace-pre-wrap border rounded-lg p-3">
+            {client.concernsNarrative}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">No topics captured yet.</div>
+        )}
+        <div className="mt-1">
+          <a href="#" className="inline-block px-3 py-2 border rounded-md">
+            Schedule
+          </a>
+        </div>
+      </section>
+
       <section className="rounded-2xl border p-5 space-y-2">
         <h3 className="font-medium">Profile</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
@@ -156,48 +211,48 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
       <section className="rounded-2xl border p-5 space-y-2">
         <h3 className="font-medium">Investment Profile</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-          <div><span className="text-gray-500">Risk Tolerance: </span>{client.riskTolerance || "—"}</div>
-          <div><span className="text-gray-500">Time Horizon: </span>{client.timeHorizon || "—"}</div>
+          <div><span className="text-gray-500">Overall Risk: </span>{client.riskTolerance || "—"}</div>
+          <div><span className="text-gray-500">Overall Horizon: </span>{client.timeHorizon || "—"}</div>
           <div className="md:col-span-2">
             <span className="text-gray-500">Primary Goals: </span>
             {Array.isArray(client.primaryGoals) && client.primaryGoals.length
               ? client.primaryGoals.join(", ")
               : "—"}
           </div>
-          <div className="md:col-span-2">
-            <span className="text-gray-500">Liquidity Needs: </span>
-            {client.liquidityNeeds || "—"}
-          </div>
-          <div className="md:col-span-2">
-            <span className="text-gray-500">Constraints: </span>
-            {Array.isArray(client.constraints) && client.constraints.length
-              ? client.constraints.join(", ")
-              : "—"}
-          </div>
-          <div className="md:col-span-2">
-            <span className="text-gray-500">Experience: </span>
-            {client.investmentExperience || "—"}
-          </div>
         </div>
-      </section>
 
-      {/* Narratives — warmer, human context */}
-      <section className="rounded-2xl border p-5 space-y-2">
-        <h3 className="font-medium">Narratives</h3>
-        <div className="text-sm space-y-2">
-          <div>
-            <span className="text-gray-500">Introduction: </span>
-            {client.introNarrative || "—"}
+        {/* Per-goal settings table */}
+        {perGoalKeys.length > 0 && (
+          <div className="mt-4 rounded-xl border p-3">
+            <div className="text-sm font-medium mb-2">Per-goal settings</div>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="p-2 text-left">Goal</th>
+                  <th className="p-2 text-left">Risk</th>
+                  <th className="p-2 text-left">Horizon</th>
+                  <th className="p-2 text-left">Liquidity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perGoalKeys.map((g) => (
+                  <tr key={g} className="border-t">
+                    <td className="p-2 capitalize">{g}</td>
+                    <td className="p-2">
+                      {goalsDetailForGrid?.[g]?.risk || client.riskTolerance || "—"}
+                    </td>
+                    <td className="p-2">
+                      {goalsDetailForGrid?.[g]?.horizon || client.timeHorizon || "—"}
+                    </td>
+                    <td className="p-2">
+                      {goalsDetailForGrid?.[g]?.liquidity || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div>
-            <span className="text-gray-500">Goals (in their words): </span>
-            {client.goalsNarrative || "—"}
-          </div>
-          <div>
-            <span className="text-gray-500">Concerns: </span>
-            {client.concernsNarrative || "—"}
-          </div>
-        </div>
+        )}
       </section>
 
       <section className="rounded-2xl border p-5 space-y-2">
@@ -217,7 +272,6 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
         )}
       </section>
 
-      {/* Client Flags */}
       <section className="rounded-2xl border p-5 space-y-2">
         <h3 className="font-medium">Client Flags</h3>
         {flags.length === 0 ? (
@@ -231,11 +285,9 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
                     <span className="font-medium">{f.fieldKey}</span>
                     {f.note ? <span className="text-gray-600"> — {f.note}</span> : null}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {new Date(f.createdAt).toLocaleString()}
-                  </div>
+                  <div className="text-xs text-gray-500">{new Date(f.createdAt).toLocaleString()}</div>
                 </div>
-                {/* Resolve button (server action calling API) */}
+                {/* Resolve button posts to your existing resolve route */}
                 <form
                   action={async () => {
                     "use server";
@@ -258,3 +310,9 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
     </main>
   );
 }
+
+
+
+
+
+

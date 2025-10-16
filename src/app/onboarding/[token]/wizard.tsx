@@ -1,7 +1,7 @@
 // src/app/onboarding/[token]/wizard.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   EMPLOYMENT_OPTIONS,
   INCOME_RANGE,
@@ -19,14 +19,14 @@ import {
   computeNetWorthBand,
 } from "@/lib/validations";
 import FlagThisField from "@/components/FlagThisField";
+import GoalEditor from "@/components/GoalEditor";
 
-type Step = 0 | 1 | 2 | 3 | 4 | 5;
+type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 /** ---- helpers for amount <-> band mapping ---- **/
 const MONEY_BANDS = ["<100k","100-250k","250-500k","500k-1M","1-3M","3M+"] as const;
 
 function toNumberUSD(s: string) {
-  // "250000" or "$250,000" → 250000
   const n = Number(String(s).replace(/[$,\s]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
@@ -50,7 +50,6 @@ function bandToExample(band: string) {
     default: return "—";
   }
 }
-// Combine two range labels into one rough band (pick the larger bucket).
 function combineTwo(a?: string, b?: string) {
   const ranks = MONEY_BANDS;
   const ra = ranks.indexOf((a || "") as any);
@@ -58,7 +57,6 @@ function combineTwo(a?: string, b?: string) {
   const idx = Math.max(ra, rb);
   return idx >= 0 ? ranks[idx] : "";
 }
-// Normalize to lower_snake-ish strings
 function normalize(label: string): string {
   if (!label) return "";
   return label
@@ -68,7 +66,6 @@ function normalize(label: string): string {
     .replace(/[^\w+-]/g, "")
     .toLowerCase();
 }
-// Convert "100-250k" -> "$100–250k", "<100k" -> "<$100k"
 function formatMoney(band: string) {
   if (!band) return "";
   const s = band.replace(/-/g, "–");
@@ -81,7 +78,7 @@ function moneyify(band: string) {
   return band ? formatMoney(band) : "—";
 }
 
-/** ---- tiny widget that lets users enter an amount or pick a band ---- **/
+/** ---- amount or range input ---- **/
 function AmountOrSelect({
   label,
   valueBand,
@@ -145,7 +142,7 @@ function AmountOrSelect({
   );
 }
 
-/** ---- Live risk × time 9-box (no deps) ---- **/
+/** ---- tiny 9-box for overall risk×time ---- **/
 function RiskHorizonNineBox({ risk, horizon }: { risk: string; horizon: string }) {
   const riskIdx = ["conservative","moderate","growth","aggressive"].indexOf(normalize(risk));
   const horIdx  = ["<3y","3-5y","5-10y","10+y"].indexOf(normalize(horizon));
@@ -162,7 +159,6 @@ function RiskHorizonNineBox({ risk, horizon }: { risk: string; horizon: string }
         <div
           className="absolute size-3 rounded-full bg-black"
           style={{
-            // 4 cols/rows -> cell size approx 25%
             left: `calc(${(x + 0.5) * 25}% - 6px)`,
             top: `calc(${(y + 0.5) * 25}% - 6px)`,
           }}
@@ -175,6 +171,14 @@ function RiskHorizonNineBox({ risk, horizon }: { risk: string; horizon: string }
     </div>
   );
 }
+
+const PRESET_TOPICS = [
+  "Retirement income",
+  "College planning",
+  "Taxes",
+  "Insurance review",
+  "Investments",
+];
 
 export default function Wizard({ token }: { token: string }) {
   const [step, setStep] = useState<Step>(0);
@@ -190,7 +194,7 @@ export default function Wizard({ token }: { token: string }) {
   const [annualIncomeBand, setAnnualIncomeBand] = useState<string>("");
   const [sourceOfFunds, setSourceOfFunds]       = useState<string[]>([]); // multi
 
-  // Assets in plain English (bands)
+  // Assets (bands)
   const [cashBand, setCashBand]                 = useState<string>("");
   const [investmentsBand, setInvestmentsBand]   = useState<string>("");
   const [retirementBand, setRetirementBand]     = useState<string>("");
@@ -200,6 +204,7 @@ export default function Wizard({ token }: { token: string }) {
 
   const [accounts, setAccounts] = useState<string[]>([]); // multi
 
+  // Overall goals & risk
   const [riskTolerance, setRiskTolerance] = useState<string>("");
   const [timeHorizon, setTimeHorizon]     = useState<string>("");
   const [primaryGoals, setPrimaryGoals]   = useState<string[]>([]);
@@ -207,23 +212,47 @@ export default function Wizard({ token }: { token: string }) {
   const [constraints, setConstraints]     = useState<string[]>([]);
   const [investmentExperience, setExperience] = useState<string>("");
 
-  // Identity (demo-friendly)
+  // Per-goal detail (extendable: risk/horizon/liquidity/amount/priority)
+  type GoalDetail = {
+    risk: string;
+    horizon: string;
+    liquidity?: string;
+    amountBand?: string;
+    priority?: boolean;
+  };
+  const [goalsDetail, setGoalsDetail] = useState<Record<string, GoalDetail>>({});
+
+  // Identity (demo)
   const [ssn, setSSN]                     = useState("");
   const [idDocType, setIdDocType]         = useState<string>("");
   const [idDocUrl, setIdDocUrl]           = useState("");
   const [consentAccepted, setConsent]     = useState(false);
 
-  // --- Next conversation topic ---
-  const NEXT_TOPIC_PRESETS = [
-    "Walk through my investments",
-    "Retirement readiness check",
-    "Taxes & liquidity planning",
-    "Education/529 plan",
-    "Estate & beneficiaries",
-    "Something else (I’ll type it)",
-  ];
-  const [nextTopicPreset, setNextTopicPreset] = useState("");
-  const [nextTopicText, setNextTopicText]     = useState("");
+  // Topics (chips + free-text + notes)
+  const [topicChips, setTopicChips] = useState<string[]>([]);
+  const [topicFree, setTopicFree]   = useState("");
+  const [concernsNarrative, setConcernsNarrative] = useState("");
+
+  // Keep goalsDetail keys in sync with selected goals (back-compat)
+  useEffect(() => {
+    setGoalsDetail(prev => {
+      const next = { ...prev };
+      // add any new goals with sensible defaults (mirror overall selections)
+      for (const g of primaryGoals) {
+        if (!next[g]) next[g] = {
+          risk: normalize(riskTolerance) || "moderate",
+          horizon: normalize(timeHorizon) || "5-10y",
+          liquidity: normalize(liquidityNeeds) || "some",
+        };
+      }
+      // drop keys for goals that were unselected
+      for (const k of Object.keys(next)) {
+        if (!primaryGoals.includes(k)) delete (next as any)[k];
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primaryGoals]);
 
   const netWorthBand = useMemo(
     () =>
@@ -238,7 +267,6 @@ export default function Wizard({ token }: { token: string }) {
     [cashBand, investmentsBand, retirementBand, realEstateBand, otherAssetsBand, debtsBand]
   );
 
-  // Derived legacy fields for your API
   const liquidAssetsBand   = useMemo(() => combineTwo(cashBand, investmentsBand), [cashBand, investmentsBand]);
   const illiquidAssetsBand = useMemo(() => combineTwo(realEstateBand, otherAssetsBand), [realEstateBand, otherAssetsBand]);
 
@@ -253,7 +281,6 @@ export default function Wizard({ token }: { token: string }) {
   async function onSubmit() {
     setErr("");
 
-    // ✅ Bulletproofing: require token and minimal identifiers before POST
     if (!token || typeof token !== "string" || token.trim().length === 0) {
       setErr("Missing intake token in URL. Please use your personalized link.");
       return;
@@ -268,9 +295,18 @@ export default function Wizard({ token }: { token: string }) {
     try {
       const fullName = `${firstName} ${lastName}`.trim();
 
-      const conversation = nextTopicPreset === "Something else (I’ll type it)"
-        ? nextTopicText
-        : nextTopicPreset;
+      // Topics: chips + free-text + longer notes → single narrative string
+      const mergedTopics = [
+        ...topicChips,
+        ...(topicFree.trim() ? [topicFree.trim()] : []),
+      ].join(", ");
+      const concernsOut =
+        [mergedTopics, concernsNarrative].filter(Boolean).join("\n\n") || null;
+
+      // If user marked priorities inside goalsDetail, derive primaryGoals from those (back-compat)
+      const derivedPrimary = Object.entries(goalsDetail)
+        .filter(([, g]) => g?.priority)
+        .map(([k]) => k);
 
       const body = {
         // identifiers
@@ -298,18 +334,23 @@ export default function Wizard({ token }: { token: string }) {
         // goals & risk
         riskTolerance: normalize(riskTolerance),
         timeHorizon: normalize(timeHorizon),
-        primaryGoals: primaryGoals.map(normalize),
+        primaryGoals: derivedPrimary.length > 0
+          ? derivedPrimary.map(normalize)
+          : primaryGoals.map(normalize),
         liquidityNeeds: normalize(liquidityNeeds),
         constraints: constraints.map(normalize),
         investmentExperience: normalize(investmentExperience),
 
+        // per-goal detail is the source of truth
+        goalsDetail,
+
         // identity (demo)
-        ssn, // last-4 for demo
+        ssn,
         idDocType: normalize(idDocType) || null,
         idDocUrl: idDocUrl || null,
 
-        // store “next conversation topic” into concernsNarrative (no schema change)
-        concernsNarrative: conversation?.trim() || null,
+        // narrative (topics + notes)
+        concernsNarrative: concernsOut,
 
         consentAccepted,
       };
@@ -340,7 +381,6 @@ export default function Wizard({ token }: { token: string }) {
     <div className="mx-auto max-w-3xl space-y-6 p-4">
       <Stepper step={step} />
 
-      {/* Hard fail visible if token is absent */}
       {!token && (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           Error: No intake token detected. Please use the personalized link from your advisor.
@@ -402,42 +442,12 @@ export default function Wizard({ token }: { token: string }) {
       {step === 2 && (
         <Card title="Assets & accounts">
           <Grid>
-            <AmountOrSelect
-              label={ASSET_BUCKETS.cash}
-              valueBand={cashBand}
-              setValueBand={setCashBand}
-              tooltip="Checking/savings."
-            />
-            <AmountOrSelect
-              label={ASSET_BUCKETS.investments}
-              valueBand={investmentsBand}
-              setValueBand={setInvestmentsBand}
-              tooltip="Brokerage, ETFs, stocks, bonds."
-            />
-            <AmountOrSelect
-              label={ASSET_BUCKETS.retirement}
-              valueBand={retirementBand}
-              setValueBand={setRetirementBand}
-              tooltip="401(k), IRA, etc."
-            />
-            <AmountOrSelect
-              label={ASSET_BUCKETS.realEstate}
-              valueBand={realEstateBand}
-              setValueBand={setRealEstateBand}
-              tooltip="Estimate equity (value minus mortgage)."
-            />
-            <AmountOrSelect
-              label={ASSET_BUCKETS.otherAssets}
-              valueBand={otherAssetsBand}
-              setValueBand={setOtherAssetsBand}
-              tooltip="Private investments, collectibles, vested options, etc."
-            />
-            <AmountOrSelect
-              label={ASSET_BUCKETS.debts}
-              valueBand={debtsBand}
-              setValueBand={setDebtsBand}
-              tooltip="Mortgage balance, student/auto loans, cards."
-            />
+            <AmountOrSelect label={ASSET_BUCKETS.cash}        valueBand={cashBand}        setValueBand={setCashBand}        tooltip="Checking/savings." />
+            <AmountOrSelect label={ASSET_BUCKETS.investments} valueBand={investmentsBand} setValueBand={setInvestmentsBand} tooltip="Brokerage, ETFs, stocks, bonds." />
+            <AmountOrSelect label={ASSET_BUCKETS.retirement}  valueBand={retirementBand}  setValueBand={setRetirementBand}  tooltip="401(k), IRA, etc." />
+            <AmountOrSelect label={ASSET_BUCKETS.realEstate}  valueBand={realEstateBand}  setValueBand={setRealEstateBand}  tooltip="Estimate equity (value minus mortgage)." />
+            <AmountOrSelect label={ASSET_BUCKETS.otherAssets} valueBand={otherAssetsBand} setValueBand={setOtherAssetsBand} tooltip="Private investments, collectibles, vested options, etc." />
+            <AmountOrSelect label={ASSET_BUCKETS.debts}       valueBand={debtsBand}       setValueBand={setDebtsBand}       tooltip="Mortgage balance, student/auto loans, cards." />
           </Grid>
 
           <div className="mt-4 rounded-md border p-3 text-sm">
@@ -475,34 +485,59 @@ export default function Wizard({ token }: { token: string }) {
             </div>
 
             <Select label="Investment experience" value={investmentExperience} onChange={setExperience} options={EXPERIENCE} />
-
-            {/* Next conversation topic */}
-            <div className="sm:col-span-2">
-              <div className="mb-1 text-slate-700 text-sm">What would you like to discuss next?</div>
-              <select
-                className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
-                value={nextTopicPreset}
-                onChange={(e)=>setNextTopicPreset(e.target.value)}
-              >
-                <option value="">Select…</option>
-                {NEXT_TOPIC_PRESETS.map((o)=> <option key={o} value={o}>{o}</option>)}
-              </select>
-              {nextTopicPreset === "Something else (I’ll type it)" && (
-                <textarea
-                  className="mt-2 w-full rounded-md border p-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
-                  rows={3}
-                  placeholder="Tell your advisor what you’d like to cover…"
-                  value={nextTopicText}
-                  onChange={(e)=>setNextTopicText(e.target.value)}
-                />
-              )}
-            </div>
           </Grid>
+
+          {/* Topics for next meeting */}
+          <div className="mt-4 sm:col-span-2">
+            <div className="mb-1 text-sm font-medium text-slate-900">Topics for our next meeting</div>
+            <div className="mb-2 flex flex-wrap gap-2">
+              {PRESET_TOPICS.map((t) => {
+                const active = topicChips.includes(t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`rounded-full border px-3 py-1 text-sm ${active ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
+                    onClick={() =>
+                      setTopicChips((prev) =>
+                        prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+                      )
+                    }
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              className="mb-2 w-full rounded-md border px-3 py-2"
+              placeholder='Enter a topic not listed (e.g., "Equity comp")'
+              value={topicFree}
+              onChange={(e)=>setTopicFree(e.target.value)}
+            />
+            <textarea
+              className="w-full rounded-md border px-3 py-2"
+              rows={4}
+              value={concernsNarrative}
+              onChange={(e)=>setConcernsNarrative(e.target.value)}
+              placeholder="Anything else on your mind?"
+            />
+          </div>
+
           <Nav step={step} setStep={setStep} canNext />
         </Card>
       )}
 
       {step === 4 && (
+        <Card title="Goal details (fine-tune by goal)">
+          <div className="space-y-4">
+            <GoalEditor value={goalsDetail as any} onChange={setGoalsDetail as any} />
+          </div>
+          <Nav step={step} setStep={setStep} canNext />
+        </Card>
+      )}
+
+      {step === 5 && (
         <Card title="Identity (demo)">
           <p className="mb-3 text-sm text-gray-600">
             For demo, SSN <strong>last-4</strong> is fine. Document field is optional. (In production, we’ll use a KYC provider and never store files directly.)
@@ -522,7 +557,7 @@ export default function Wizard({ token }: { token: string }) {
         </Card>
       )}
 
-      {step === 5 && (
+      {step === 6 && (
         <Card title="Review & submit">
           <Summary
             sections={[
@@ -559,18 +594,30 @@ export default function Wizard({ token }: { token: string }) {
               {
                 title: "Goals & risk",
                 rows: [
-                  ["Risk tolerance", riskTolerance || "—"],
-                  ["Time horizon", timeHorizon || "—"],
-                  ["Primary goals", primaryGoals.join(", ") || "—"],
-                  ["Liquidity needs", liquidityNeeds || "—"],
+                  ["Overall risk", riskTolerance || "—"],
+                  ["Overall horizon", timeHorizon || "—"],
+                  ["Primary goals", (primaryGoals.length ? primaryGoals : Object.keys(goalsDetail)).join(", ") || "—"],
+                  ["Overall liquidity", liquidityNeeds || "—"],
                   ["Preferences / restrictions", constraints.join(", ") || "—"],
                   ["Experience", investmentExperience || "—"],
                 ],
               },
               {
-                title: "Next conversation",
+                title: "Per-goal details",
+                rows: Object.keys(goalsDetail).map((g) => ([
+                  g,
+                  `${goalsDetail[g]?.risk || "(overall)"} × ${goalsDetail[g]?.horizon || "(overall)"}${
+                    goalsDetail[g]?.liquidity ? ` · ${goalsDetail[g]?.liquidity}` : ""
+                  }${goalsDetail[g]?.amountBand ? ` · ${goalsDetail[g]?.amountBand}` : ""}${
+                    goalsDetail[g]?.priority ? " · priority" : ""
+                  }`
+                ] as [string, string])),
+              },
+              {
+                title: "Topics for next meeting",
                 rows: [
-                  ["Topic", (nextTopicPreset === "Something else (I’ll type it)" ? nextTopicText : nextTopicPreset) || "—"],
+                  ["Selected topics", [...topicChips, ...(topicFree.trim()? [topicFree.trim()]: [])].join(", ") || "—"],
+                  ["Notes", concernsNarrative || "—"],
                 ],
               },
             ]}
@@ -604,11 +651,9 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
     </section>
   );
 }
-
 function Grid({ children }: { children: React.ReactNode }) {
   return <div className="grid gap-3 sm:grid-cols-2">{children}</div>;
 }
-
 function Input({
   label, value, onChange, type="text", required, maxLength
 }: {
@@ -628,7 +673,6 @@ function Input({
     </label>
   );
 }
-
 function Select({
   label, value, onChange, options, required, tooltip, money
 }: {
@@ -656,7 +700,6 @@ function Select({
     </label>
   );
 }
-
 function Multi({
   label, values, onToggle, options
 }: {
@@ -683,7 +726,6 @@ function Multi({
     </div>
   );
 }
-
 function Nav({ step, setStep, canNext }: { step: Step; setStep: (s: Step)=>void; canNext: boolean }) {
   return (
     <div className="mt-4 flex gap-2">
@@ -694,9 +736,8 @@ function Nav({ step, setStep, canNext }: { step: Step; setStep: (s: Step)=>void;
     </div>
   );
 }
-
 function Stepper({ step }: { step: number }) {
-  const steps = ["About you","Work & income","Assets & accounts","Goals & risk","Identity verify","Review & submit"];
+  const steps = ["About you","Work & income","Assets & accounts","Goals & risk","Goal details","Identity verify","Review & submit"];
   return (
     <div className="flex flex-wrap gap-2 text-xs text-slate-600">
       {steps.map((s, i)=> (
@@ -705,7 +746,6 @@ function Stepper({ step }: { step: number }) {
     </div>
   );
 }
-
 function Summary({ sections }: { sections: { title: string; rows: [string,string][] }[] }) {
   return (
     <div className="space-y-4">

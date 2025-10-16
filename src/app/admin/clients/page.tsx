@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { prisma } from "../../../prisma";
 import { getAdvisorIdFromCookie } from "../../../lib/session";
 import SentryInit from "./SentryInit";
+import QuickActions from "@/components/QuickActions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +48,10 @@ export default async function AdminClients(props: any) {
   const searchParams = props?.searchParams ?? {};
   const firmRaw = Array.isArray(searchParams.firm) ? searchParams.firm[0] : searchParams.firm;
   const firmCodeParam: string | undefined = firmRaw ? String(firmRaw) : undefined;
+
+  // Status filter (maps query ?status= to onboardingStatus)
+  const statusRaw = Array.isArray(searchParams.status) ? searchParams.status[0] : searchParams.status;
+  const statusFilter = (statusRaw ?? "").toString().toLowerCase().trim();
 
   let advisor: { name: string | null; firm: string | null } | null = null;
   try {
@@ -113,6 +118,8 @@ export default async function AdminClients(props: any) {
     annualIncomeBand: true,
     advisorId: true,
     onboardingStatus: true,
+    onboardingProgress: true,
+    intakeToken: true,
     concernsNarrative: true, // ← next-convo topic
     clientFieldFlags: {
       where: { status: "open" },
@@ -122,10 +129,17 @@ export default async function AdminClients(props: any) {
 
   try {
     const baseWhere: any = advisorId ? { advisorId } : {};
+    const whereWithStatus =
+      statusFilter
+        ? {
+            ...baseWhere,
+            onboardingStatus: statusFilter as any, // expects values like "in_progress" | "verified" | "declined"
+          }
+        : baseWhere;
 
     if (hasQ) {
       const all = await prisma.client.findMany({
-        where: baseWhere,
+        where: whereWithStatus,
         orderBy: { createdAt: "desc" },
         select: SELECT_FIELDS,
       });
@@ -138,9 +152,9 @@ export default async function AdminClients(props: any) {
       total = filtered.length;
       rows = filtered.slice(PAGE_SKIP, PAGE_SKIP + PAGE_SIZE);
     } else {
-      total = await prisma.client.count({ where: baseWhere });
+      total = await prisma.client.count({ where: whereWithStatus });
       rows = await prisma.client.findMany({
-        where: baseWhere,
+        where: whereWithStatus,
         orderBy: { createdAt: "desc" },
         skip: PAGE_SKIP,
         take: PAGE_SIZE,
@@ -167,6 +181,17 @@ export default async function AdminClients(props: any) {
   const riskEntries = Object.entries(riskMix).sort((a, b) => b[1] - a[1]);
   const goalEntries = Object.entries(goalMix).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const riskMax = Math.max(1, ...riskEntries.map(([, v]) => v));
+  const appOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN || "";
+
+  // Helpers to display friendly labels for onboardingStatus
+  const STATUS_FILTERS: { key: string; label: string }[] = [
+    { key: "", label: "All" },
+    { key: "in_progress", label: "In Progress" },
+    { key: "verified", label: "Verified" },
+    { key: "declined", label: "Declined" },
+  ];
+  const friendlyStatus = (s?: string) =>
+    (s || "in_progress").replace(/_/g, " ");
 
   return (
     <>
@@ -195,6 +220,23 @@ export default async function AdminClients(props: any) {
               Export CSV
             </a>
           </div>
+        </div>
+
+        {/* Status filter bar */}
+        <div className="flex flex-wrap gap-2">
+          {STATUS_FILTERS.map(({ key, label }) => {
+            const active = statusFilter === key;
+            const href = key ? `/admin/clients?status=${encodeURIComponent(key)}` : "/admin/clients";
+            return (
+              <Link
+                key={key || "all"}
+                href={active ? "/admin/clients" : href}
+                className={`px-3 py-1 rounded-full border text-sm ${active ? "bg-black text-white" : "hover:bg-gray-100"}`}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </div>
 
         {!analyticsError && (
@@ -228,7 +270,10 @@ export default async function AdminClients(props: any) {
                 <th className="p-2 text-left">Risk</th>
                 <th className="p-2 text-left">Goals</th>
                 <th className="p-2 text-left">Next conversation</th>
-                <th className="p-2 text-left">Status / Brief</th>
+                <th className="p-2 text-left">Status</th>
+                <th className="p-2 text-left">Progress</th>
+                <th className="p-2 text-left">Brief</th>
+                <th className="p-2 text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -242,6 +287,7 @@ export default async function AdminClients(props: any) {
                     : "—";
                 const openFlagCount = (r as any).clientFieldFlags?.length ?? 0;
                 const missing = computeMissing(r);
+                const inviteUrl = r.intakeToken ? `${appOrigin}/onboarding/${r.intakeToken}` : "";
 
                 return (
                   <tr key={r.id} className="transition border-t hover:bg-gray-50">
@@ -263,25 +309,51 @@ export default async function AdminClients(props: any) {
                             ⚑ {openFlagCount}
                           </span>
                         )}
-                        {/* status as text (not editable here) */}
+                        {/* status as read-only badge */}
                         <span className="text-xs rounded-md border px-2 py-0.5">
-                          {(r.onboardingStatus || "in_progress").replace(/_/g, " ")}
+                          {friendlyStatus(r.onboardingStatus)}
                         </span>
                         {/* quick missing hint */}
                         {missing && (
                           <span className="text-xs text-gray-500">• missing: {missing}</span>
                         )}
-                        <Link className="link" href={`/admin/clients/${r.id}/brief`}>
-                          Brief
-                        </Link>
                       </div>
+                    </td>
+                    <td className="p-2" style={{ minWidth: 160 }}>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 rounded bg-gray-200">
+                          <div
+                            className="h-2 rounded bg-black"
+                            style={{ width: `${Math.min(100, Math.max(0, r.onboardingProgress ?? 0))}%` }}
+                          />
+                        </div>
+                        <span className="text-xs tabular-nums">
+                          {Math.min(100, Math.max(0, r.onboardingProgress ?? 0))}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-2">
+                      <Link className="link underline" href={`/admin/clients/${r.id}/brief`}>
+                        Brief
+                      </Link>
+                    </td>
+                    <td className="p-2">
+                      {inviteUrl ? (
+                        <QuickActions
+                          inviteUrl={inviteUrl}
+                          resendHref={`/admin/clients/${r.id}/resend-invite`}
+                          flagsCount={openFlagCount}
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-500">No link</span>
+                      )}
                     </td>
                   </tr>
                 );
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td className="p-4 text-gray-500" colSpan={7}>
+                  <td className="p-4 text-gray-500" colSpan={10}>
                     No results.
                   </td>
                 </tr>

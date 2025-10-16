@@ -1,70 +1,109 @@
-// src/components/GoalGrid.tsx
 "use client";
 
-type Item = {
-  goalKey: string;        // e.g., "retirement", "education"
-  risk: string;           // conservative | moderate | growth | aggressive
-  horizon: string;        // <3y | 3-5y | 5-10y | 10+y
+import * as React from "react";
+
+export type GoalDetail = {
+  risk?: "conservative" | "moderate" | "aggressive" | string;
+  horizon?:
+    | "<1y"
+    | "1-3y"
+    | "3-5y"
+    | "5-10y"
+    | "10+y"
+    | string;
+  amountBand?: string; // e.g., "100-250k", "500k-1M"
+  priority?: boolean;
 };
 
-const RISK_ORDER = ["conservative", "moderate", "growth", "aggressive"] as const;
-const HORIZON_ORDER = ["<3y", "3-5y", "5-10y", "10+y"] as const;
+export type GoalsDetail = Record<string, GoalDetail>;
 
-function idxOf<T extends string>(arr: readonly T[], v: string) {
-  const i = arr.indexOf(v as T);
-  return i >= 0 ? i : Math.max(0, Math.min(arr.length - 1, Math.floor(arr.length / 2)));
+const RISK_ORDER = ["conservative", "moderate", "aggressive"];
+const HORIZON_ORDER = ["<1y", "1-3y", "3-5y", "5-10y", "10+y"];
+
+function toAxisX(risk?: string) {
+  const idx = RISK_ORDER.indexOf((risk ?? "").toLowerCase());
+  return idx >= 0 ? idx : 1; // default to middle column
+}
+function toAxisY(h?: string) {
+  const idx = HORIZON_ORDER.indexOf((h ?? "").toLowerCase());
+  return idx >= 0 ? idx : 2; // default to middle row
 }
 
-export default function GoalGrid({ items }: { items: Item[] }) {
-  return (
-    <div className="rounded-2xl border p-4">
-      <div className="mb-2 text-sm font-medium text-slate-900">Goals map (risk × horizon)</div>
-      <div className="relative">
-        {/* grid */}
-        <div className="grid grid-cols-4 grid-rows-4 gap-2">
-          {HORIZON_ORDER.map((h) =>
-            RISK_ORDER.map((r) => (
-              <div
-                key={`${r}-${h}`}
-                className="h-16 rounded-md border border-dashed bg-white"
-                title={`${r} × ${h}`}
-              />
-            ))
-          )}
-        </div>
+function bandToNumber(band?: string): number {
+  if (!band) return 0;
+  // crude parser: pick the largest number in the band
+  const nums = (band.match(/\d+\.?\d*/g) || []).map(parseFloat);
+  if (nums.length === 0) return 0;
+  const max = Math.max(...nums);
+  // assume k/M markers
+  if (/m/i.test(band)) return max * 1_000_000;
+  if (/k/i.test(band)) return max * 1_000;
+  return max;
+}
 
+export default function GoalGrid({
+  goalsDetail,
+  className,
+}: {
+  goalsDetail: GoalsDetail | undefined;
+  className?: string;
+}) {
+  const items = React.useMemo(() => {
+    if (!goalsDetail) return [];
+    return Object.entries(goalsDetail).map(([key, g]) => {
+      const x = toAxisX(g.risk);
+      const y = toAxisY(g.horizon);
+      const amt = bandToNumber(g.amountBand);
+      // size heuristic: 8..24 px base, bump if priority
+      let r = 8 + Math.min(24, Math.floor(Math.log10((amt || 1000)))); // 1k→+3, 1M→+6-ish
+      if (g.priority) r += 6;
+      return { key, x, y, r, g };
+    });
+  }, [goalsDetail]);
+
+  return (
+    <div className={className}>
+      <div className="border rounded-xl p-4">
         {/* axis labels */}
-        <div className="absolute -left-2 top-1/2 -translate-y-1/2 -rotate-90 text-xs text-slate-500">
-          Risk (low → high)
+        <div className="flex justify-between text-xs mb-2">
+          <span>Conservative</span>
+          <span>Moderate</span>
+          <span>Aggressive</span>
         </div>
-        <div className="mt-2 flex justify-between text-[11px] text-slate-500 pl-4 pr-4">
-          {RISK_ORDER.map((r) => (
-            <span key={r} className="capitalize">{r}</span>
+        <div className="relative grid grid-cols-3 grid-rows-5 gap-4 min-h-[260px]">
+          {/* faint grid */}
+          {[...Array(15)].map((_, i) => (
+            <div key={i} className="border border-dashed rounded-md" />
+          ))}
+          {/* dots */}
+          {items.map((it) => {
+            // place center of the cell
+            const left = `calc(${(it.x / 2) * 100}% - ${it.r / 2}px)`;
+            const top = `calc(${(it.y / 4) * 100}% - ${it.r / 2}px)`;
+            return (
+              <div
+                key={it.key}
+                title={`${it.key}: ${it.g.risk ?? "?"} × ${it.g.horizon ?? "?"}${
+                  it.g.amountBand ? ` • ${it.g.amountBand}` : ""
+                }${it.g.priority ? " • priority" : ""}`}
+                className="absolute rounded-full opacity-80"
+                style={{
+                  left,
+                  top,
+                  width: it.r,
+                  height: it.r,
+                  border: "2px solid currentColor",
+                }}
+              />
+            );
+          })}
+        </div>
+        <div className="flex justify-between text-xs mt-2">
+          {HORIZON_ORDER.map((h) => (
+            <span key={h}>{h}</span>
           ))}
         </div>
-        <div className="absolute left-1/2 -bottom-5 -translate-x-1/2 text-xs text-slate-500">
-          Time horizon (short → long)
-        </div>
-
-        {/* dots */}
-        {items.map((it) => {
-          const x = idxOf(RISK_ORDER, it.risk);
-          const y = idxOf(HORIZON_ORDER, it.horizon);
-          const left = (x + 0.5) * (100 / 4);
-          const top  = (y + 0.5) * (100 / 4);
-          return (
-            <div
-              key={it.goalKey}
-              className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border bg-black"
-              style={{ left: `calc(${left}% + 4px)`, top: `calc(${top}% + 4px)` }}
-              title={`${it.goalKey} — ${it.risk} × ${it.horizon}`}
-            />
-          );
-        })}
       </div>
-      {items.length === 0 ? (
-        <p className="mt-3 text-xs text-slate-500">Select goals to see them plotted here.</p>
-      ) : null}
     </div>
   );
 }

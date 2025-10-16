@@ -144,6 +144,43 @@ function isPlainObject(v: unknown): v is Record<string, any> {
   return !!v && Object.prototype.toString.call(v) === "[object Object]";
 }
 
+/* -------------------- Progress snapshot (server-computed) ------------------- */
+type SectionFlags = {
+  profile?: boolean;
+  assets?: boolean;
+  liabilities?: boolean;
+  goals?: boolean;
+  concerns?: boolean;
+};
+
+function computeProgressSnapshot(payload: any, existing: any = {}): { progress: number; snapshot: SectionFlags } {
+  // Merge the incoming payload with any existing DB values
+  const merged = { ...(existing ?? {}), ...(payload ?? {}) };
+
+  const hasProfile =
+    !!merged.firstName || !!merged.lastName || !!merged.phone || !!merged.email;
+  const hasAssets =
+    !!merged.netWorthBand || !!merged.liquidAssetsBand || !!merged.illiquidAssetsBand;
+  const hasLiabilities =
+    !!merged.liabilitiesBand;
+  const hasGoals =
+    !!merged.goalsDetail || (Array.isArray(merged.primaryGoals) && merged.primaryGoals.length > 0);
+  const hasConcerns =
+    typeof merged.concernsNarrative === "string" && merged.concernsNarrative.trim().length > 0;
+
+  const flags: SectionFlags = {
+    profile: !!hasProfile,
+    assets: !!hasAssets,
+    liabilities: !!hasLiabilities,
+    goals: !!hasGoals,
+    concerns: !!hasConcerns,
+  };
+  const total = Object.values(flags).filter(Boolean).length;
+  const progress = Math.round((total / 5) * 100);
+  return { progress, snapshot: flags };
+}
+/* --------------------------------------------------------------------------- */
+
 // ⚠️ Keep 2nd arg loose so Next.js validator is happy.
 export async function POST(req: NextRequest, context: any) {
   try {
@@ -227,6 +264,24 @@ export async function POST(req: NextRequest, context: any) {
     // Only include JSON when it's a plain object; otherwise omit the field.
     const goalsDetailInput = isPlainObject(goalsDetail) ? goalsDetail : undefined;
 
+    // Fetch existing to compute progress snapshot against merged values
+    const existing = await prisma.client.findFirst({
+      where: { advisorId, email },
+      select: {
+        firstName: true, lastName: true, phone: true, email: true,
+        netWorthBand: true, liquidAssetsBand: true, illiquidAssetsBand: true, liabilitiesBand: true,
+        goalsDetail: true, primaryGoals: true, concernsNarrative: true,
+      },
+    });
+    const { progress, snapshot } = computeProgressSnapshot(
+      {
+        firstName: nf, lastName: nl, phone, email,
+        netWorthBand, liquidAssetsBand, illiquidAssetsBand, liabilitiesBand,
+        goalsDetail: goalsDetailInput, primaryGoals, concernsNarrative,
+      },
+      existing
+    );
+
     // 🔗 UPSERT the client **scoped to this advisor**
     const client = await prisma.client.upsert({
       where: { advisorId_email: { advisorId, email } },
@@ -259,6 +314,10 @@ export async function POST(req: NextRequest, context: any) {
         goalsNarrative: goalsNarrative ?? null,
         concernsNarrative: concernsNarrative ?? null,
 
+        // server-computed progress
+        onboardingProgress: progress,
+        sectionCompletion: snapshot as any,
+
         idDocType, idDocUrl, proofOfAddressUrl,
         consentAcceptedAt,
         onboardingStatus: "in_progress",
@@ -285,6 +344,10 @@ export async function POST(req: NextRequest, context: any) {
         introNarrative: introNarrative ?? null,
         goalsNarrative: goalsNarrative ?? null,
         concernsNarrative: concernsNarrative ?? null,
+
+        // server-computed progress
+        onboardingProgress: progress,
+        sectionCompletion: snapshot as any,
 
         idDocType, idDocUrl, proofOfAddressUrl,
         consentAcceptedAt,

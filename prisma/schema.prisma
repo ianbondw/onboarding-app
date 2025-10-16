@@ -65,6 +65,11 @@ model Client {
   goalsNarrative     String?
   concernsNarrative  String?
 
+  /// Server-computed onboarding progress (0-100)
+  onboardingProgress Int       @default(0)
+  /// Optional section-by-section completion snapshot
+  sectionCompletion  Json?
+
   // Existing accounts (light)
   hasIRA             Boolean   @default(false)
   has401k            Boolean   @default(false)
