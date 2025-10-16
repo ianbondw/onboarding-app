@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
-// If your Prisma helper is at project root as in your API routes, change to:
-// import { prisma } from "../../../../../prisma";
-import { prisma } from "@/lib/prisma";
+// ✅ Use your existing helper at src/app/prisma.ts
+import { prisma } from "../../../../prisma";
 import { getAdvisorIdFromCookie } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -15,11 +14,9 @@ export default async function ClientBriefPage({ params }: PageProps) {
 
   const advisorId = await getAdvisorIdFromCookie();
   if (!advisorId) {
-    // Not authenticated for an advisor; hide details
     notFound();
   }
 
-  // Fetch the client scoped to the logged-in advisor, plus matches
   const [client, matches] = await prisma.$transaction([
     prisma.client.findFirst({
       where: { id: clientId, advisorId },
@@ -76,7 +73,6 @@ export default async function ClientBriefPage({ params }: PageProps) {
   ]);
 
   if (!client) {
-    // Either client doesn't exist or belongs to a different advisor
     notFound();
   }
 
