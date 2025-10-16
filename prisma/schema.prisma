@@ -57,6 +57,11 @@ model Client {
   constraints          String[]  // [no_leverage, esg_only]
   investmentExperience String?   // none | basic | intermediate | advanced
 
+  // Narratives (optional, “warmer” free text)
+  introNarrative     String?
+  goalsNarrative     String?
+  concernsNarrative  String?
+
   // Existing accounts (light)
   hasIRA             Boolean   @default(false)
   has401k            Boolean   @default(false)
@@ -86,6 +91,9 @@ model Client {
   rawSubmission      Json?
 
   matches            ProductMatch[]
+
+  // 🔁 Opposite side of ClientFieldFlag.client
+  clientFieldFlags   ClientFieldFlag[]
 
   @@index([createdAt])
   @@index([advisorId])
@@ -126,4 +134,19 @@ model IntakeLink {
 
   expiresAt DateTime?
   isActive  Boolean  @default(true)
+}
+
+model ClientFieldFlag {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId   String
+  advisorId  String
+
+  fieldKey   String   // e.g., "employmentStatus", "annualIncomeBand", "constraints"
+  note       String?  // optional free text from client ("not sure which band", etc.)
+  status     String   @default("open") // open | resolved
+
+  @@index([advisorId, clientId, fieldKey, status])
 }

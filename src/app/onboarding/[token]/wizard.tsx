@@ -18,6 +18,7 @@ import {
   ID_DOC_TYPES,
   computeNetWorthBand,
 } from "@/lib/validations";
+import FlagThisField from "@/components/FlagThisField";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -188,10 +189,40 @@ export default function Wizard({ token }: { token: string }) {
       {step === 1 && (
         <Card title="Work & income">
           <Grid>
-            <Select label="Employment status" value={employmentStatus} onChange={setEmploymentStatus} options={EMPLOYMENT_OPTIONS} required tooltip="Your current work situation." />
+            <Select
+              label="Employment status"
+              value={employmentStatus}
+              onChange={setEmploymentStatus}
+              options={EMPLOYMENT_OPTIONS}
+              required
+              tooltip="Your current work situation."
+            />
+            {/* Client can flag this field */}
+            <div className="sm:col-span-2 -mt-2">
+              <FlagThisField token={token} email={email} fieldKey="employmentStatus" className="mt-1" />
+            </div>
+
             <Input  label="Employer name" value={employerName} onChange={setEmployerName} />
-            <Select label="Annual income (range)" value={annualIncomeBand} onChange={setAnnualIncomeBand} options={INCOME_RANGE} money required />
-            <Multi label="Source of funds (select all that apply)" values={sourceOfFunds} onToggle={(v)=>toggleMulti(sourceOfFunds, v, setSourceOfFunds)} options={SOURCE_OF_FUNDS} />
+
+            <Select
+              label="Annual income (range)"
+              value={annualIncomeBand}
+              onChange={setAnnualIncomeBand}
+              options={INCOME_RANGE}
+              money
+              required
+            />
+            {/* Client can flag this field */}
+            <div className="sm:col-span-2 -mt-2">
+              <FlagThisField token={token} email={email} fieldKey="annualIncomeBand" className="mt-1" />
+            </div>
+
+            <Multi
+              label="Source of funds (select all that apply)"
+              values={sourceOfFunds}
+              onToggle={(v)=>toggleMulti(sourceOfFunds, v, setSourceOfFunds)}
+              options={SOURCE_OF_FUNDS}
+            />
           </Grid>
           <Nav step={step} setStep={setStep} canNext={!!(employmentStatus && annualIncomeBand)} />
         </Card>
@@ -229,8 +260,19 @@ export default function Wizard({ token }: { token: string }) {
             <Select label="Risk tolerance"  value={riskTolerance} onChange={setRiskTolerance} options={RISK_OPTIONS} required />
             <Select label="Time horizon"    value={timeHorizon}   onChange={setTimeHorizon}   options={TIME_HORIZON} required tooltip="When you expect to use this money." />
             <Multi  label="Primary goals (select all that apply)" values={primaryGoals} onToggle={(v)=>toggleMulti(primaryGoals, v, setPrimaryGoals)} options={PRIMARY_GOALS} />
+
             <Select label="Liquidity needs" value={liquidityNeeds} onChange={setLiquidity} options={LIQUIDITY_NEEDS} tooltip="How quickly you might need cash without large losses." />
+            {/* Client can flag this field */}
+            <div className="sm:col-span-2 -mt-2">
+              <FlagThisField token={token} email={email} fieldKey="liquidityNeeds" className="mt-1" />
+            </div>
+
             <Multi  label="Preferences & restrictions (optional)" values={constraints} onToggle={(v)=>toggleMulti(constraints, v, setConstraints)} options={CONSTRAINTS} />
+            {/* Client can flag this field */}
+            <div className="sm:col-span-2 -mt-2">
+              <FlagThisField token={token} email={email} fieldKey="constraints" className="mt-1" />
+            </div>
+
             <Select label="Investment experience" value={investmentExperience} onChange={setExperience} options={EXPERIENCE} />
           </Grid>
           <Nav step={step} setStep={setStep} canNext />

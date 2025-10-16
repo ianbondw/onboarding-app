@@ -16,7 +16,7 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
   const advisorId = await getAdvisorIdFromCookie();
   if (!advisorId) notFound();
 
-  const [client, matches] = await prisma.$transaction([
+  const [client, matches, flags] = await prisma.$transaction([
     prisma.client.findFirst({
       where: { id: clientId, advisorId },
       select: {
@@ -34,25 +34,35 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
         postalCode: true,
         country: true,
         citizenship: true,
+
         employmentStatus: true,
         employerName: true,
         annualIncomeBand: true,
         sourceOfFunds: true,
+
         liquidAssetsBand: true,
         illiquidAssetsBand: true,
         liabilitiesBand: true,
         netWorthBand: true,
+
         hasIRA: true,
         has401k: true,
         hasTaxable: true,
         hasCrypto: true,
         hasRealEstate: true,
+
         riskTolerance: true,
         timeHorizon: true,
         primaryGoals: true,
         liquidityNeeds: true,
         constraints: true,
         investmentExperience: true,
+
+        // Narratives (show the “warmth” text if present)
+        introNarrative: true,
+        goalsNarrative: true,
+        concernsNarrative: true,
+
         consentAcceptedAt: true,
         onboardingStatus: true,
         createdAt: true,
@@ -68,6 +78,11 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
         riskBand: true,
       },
       orderBy: { productCode: "asc" },
+    }),
+    prisma.clientFieldFlag.findMany({
+      where: { clientId: clientId, advisorId, status: "open" },
+      select: { id: true, fieldKey: true, note: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -166,6 +181,25 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
         </div>
       </section>
 
+      {/* Narratives — warmer, human context */}
+      <section className="rounded-2xl border p-5 space-y-2">
+        <h3 className="font-medium">Narratives</h3>
+        <div className="text-sm space-y-2">
+          <div>
+            <span className="text-gray-500">Introduction: </span>
+            {client.introNarrative || "—"}
+          </div>
+          <div>
+            <span className="text-gray-500">Goals (in their words): </span>
+            {client.goalsNarrative || "—"}
+          </div>
+          <div>
+            <span className="text-gray-500">Concerns: </span>
+            {client.concernsNarrative || "—"}
+          </div>
+        </div>
+      </section>
+
       <section className="rounded-2xl border p-5 space-y-2">
         <h3 className="font-medium">Recommended Products</h3>
         {matches.length === 0 ? (
@@ -177,6 +211,45 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
                 <span className="font-medium">{m.productName}</span>
                 {m.riskBand ? <span className="text-gray-500"> — {m.riskBand}</span> : null}
                 <div className="text-gray-600">{m.rationale}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Client Flags */}
+      <section className="rounded-2xl border p-5 space-y-2">
+        <h3 className="font-medium">Client Flags</h3>
+        {flags.length === 0 ? (
+          <p className="text-sm text-gray-600">No open flags.</p>
+        ) : (
+          <ul className="space-y-3">
+            {flags.map((f) => (
+              <li key={f.id} className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm">
+                    <span className="font-medium">{f.fieldKey}</span>
+                    {f.note ? <span className="text-gray-600"> — {f.note}</span> : null}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {new Date(f.createdAt).toLocaleString()}
+                  </div>
+                </div>
+                {/* Resolve button (server action calling API) */}
+                <form
+                  action={async () => {
+                    "use server";
+                    await fetch(`/api/admin/clients/${clientId}/flags/resolve`, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ flagId: f.id }),
+                    });
+                  }}
+                >
+                  <button type="submit" className="text-xs rounded-md border px-2 py-1">
+                    Resolve
+                  </button>
+                </form>
               </li>
             ))}
           </ul>

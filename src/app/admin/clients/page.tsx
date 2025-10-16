@@ -113,7 +113,13 @@ export default async function AdminClients(props: any) {
     timeHorizon: true,
     primaryGoals: true,
     advisorId: true,
-    onboardingStatus: true, // ← NEW for StatusCell initial value
+    onboardingStatus: true, // ← for StatusCell initial value
+
+    // 🔢 Open flag count via relation filter (select ids, count in JS)
+    clientFieldFlags: {
+      where: { status: "open" },
+      select: { id: true },
+    },
   } as const;
 
   try {
@@ -224,7 +230,7 @@ export default async function AdminClients(props: any) {
                 <th className="p-2 text-left">Email</th>
                 <th className="p-2 text-left">Risk</th>
                 <th className="p-2 text-left">Goals</th>
-                <th className="p-2 text-left">Status / Brief</th> {/* ← label updated */}
+                <th className="p-2 text-left">Status / Brief</th>
               </tr>
             </thead>
             <tbody>
@@ -236,6 +242,8 @@ export default async function AdminClients(props: any) {
                   Array.isArray(r.primaryGoals) && r.primaryGoals.length > 0
                     ? r.primaryGoals.join(", ")
                     : "—";
+                const openFlagCount = (r as any).clientFieldFlags?.length ?? 0;
+
                 return (
                   <tr key={r.id} className="transition border-t hover:bg-gray-50">
                     <td className="p-2">{created}</td>
@@ -245,6 +253,12 @@ export default async function AdminClients(props: any) {
                     <td className="p-2">{goals}</td>
                     <td className="p-2">
                       <div className="flex items-center gap-2">
+                        {/* tiny badge for open client flags */}
+                        {openFlagCount > 0 && (
+                          <span className="ml-0 inline-flex items-center rounded-full border px-2 py-0.5 text-xs">
+                            ⚑ {openFlagCount}
+                          </span>
+                        )}
                         <StatusCell
                           id={r.id}
                           initial={(r as any).onboardingStatus || null}
