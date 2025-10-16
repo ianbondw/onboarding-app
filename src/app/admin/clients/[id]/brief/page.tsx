@@ -1,15 +1,16 @@
 // src/app/admin/clients/[id]/brief/page.tsx
 import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
-import { prisma } from "@/prisma";                 // ✅ use src/prisma.ts
+import { prisma } from "@/prisma";
 import { getAdvisorIdFromCookie } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-type PageProps = { params: { id: string } };
+type Params = Promise<{ id: string }>;
 
-export default async function ClientBriefPage({ params }: PageProps) {
-  const clientId = params?.id?.trim();
+export default async function ClientBriefPage({ params }: { params: Params }) {
+  const { id: rawId } = await params;
+  const clientId = rawId?.trim();
   if (!clientId) notFound();
 
   const advisorId = await getAdvisorIdFromCookie();
@@ -72,7 +73,8 @@ export default async function ClientBriefPage({ params }: PageProps) {
 
   if (!client) notFound();
 
-  const fullName = [client.firstName, client.lastName].filter(Boolean).join(" ") || "(Unnamed)";
+  const fullName =
+    [client.firstName, client.lastName].filter(Boolean).join(" ") || "(Unnamed)";
   const fmt = (d?: Date | null) => (d ? new Date(d).toLocaleDateString() : "—");
   const yesNo = (b?: boolean | null) => (b ? "Yes" : "No");
 
