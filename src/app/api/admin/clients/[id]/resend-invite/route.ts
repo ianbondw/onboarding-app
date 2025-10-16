@@ -2,24 +2,18 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-// ✅ Use your existing helper at src/app/prisma.ts
-import { prisma } from "../../../../../prisma";
+import { prisma } from "@/lib/prisma";                  // ⬅️ swap to alias
 import { getAdvisorIdFromCookie } from "@/lib/session";
 import { sendMail } from "@/lib/mailer";
 
 export async function POST(_req: Request, context: any) {
   try {
     const advisorId = await getAdvisorIdFromCookie();
-    if (!advisorId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!advisorId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const clientId = context?.params?.id as string | undefined;
-    if (!clientId) {
-      return NextResponse.json({ error: "Missing client id" }, { status: 400 });
-    }
+    if (!clientId) return NextResponse.json({ error: "Missing client id" }, { status: 400 });
 
-    // Fetch the client (scoped to advisor) and the most recent intake link for that advisor
     const [client, link] = await Promise.all([
       prisma.client.findFirst({
         where: { id: clientId, advisorId },
@@ -32,15 +26,9 @@ export async function POST(_req: Request, context: any) {
       }),
     ]);
 
-    if (!client) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    if (!client.email) {
-      return NextResponse.json({ error: "Client has no email" }, { status: 400 });
-    }
-    if (!link?.token) {
-      return NextResponse.json({ error: "No intake link for this advisor" }, { status: 400 });
-    }
+    if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!client.email) return NextResponse.json({ error: "Client has no email" }, { status: 400 });
+    if (!link?.token) return NextResponse.json({ error: "No intake link for this advisor" }, { status: 400 });
 
     const appOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN || "https://marengofinance-app.com";
     const url = `${appOrigin}/onboarding/${link.token}`;
@@ -57,7 +45,6 @@ ${url}
 If you have any questions, reply to this email and your advisor will help you complete it.`,
     });
 
-    // In dev (no RESEND keys), sendMail simulates; we still return ok:true
     return NextResponse.json({ ok: true, simulated: !res.ok ? true : undefined });
   } catch (e) {
     console.warn("resend-invite failed:", e);
@@ -65,7 +52,10 @@ If you have any questions, reply to this email and your advisor will help you co
   }
 }
 
-// Friendly response for browser GET checks
+// Optional: friendlier GET for browser checks
 export async function GET() {
-  return NextResponse.json({ ok: false, error: "Use POST /api/admin/clients/[id]/resend-invite" }, { status: 405 });
+  return NextResponse.json(
+    { ok: false, error: "Use POST /api/admin/clients/[id]/resend-invite" },
+    { status: 405 }
+  );
 }

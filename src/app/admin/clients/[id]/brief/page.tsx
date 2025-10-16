@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
-import { prisma } from "../../../../prisma";      // ✅ relative import
+import { prisma } from "@/lib/prisma";                // ⬅️ swap to alias
 import { getAdvisorIdFromCookie } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +12,7 @@ export default async function ClientBriefPage({ params }: PageProps) {
   if (!clientId) notFound();
 
   const advisorId = await getAdvisorIdFromCookie();
-  if (!advisorId) {
-    notFound();
-  }
+  if (!advisorId) notFound();
 
   const [client, matches] = await prisma.$transaction([
     prisma.client.findFirst({
@@ -71,9 +69,7 @@ export default async function ClientBriefPage({ params }: PageProps) {
     }),
   ]);
 
-  if (!client) {
-    notFound();
-  }
+  if (!client) notFound();
 
   const fullName = [client.firstName, client.lastName].filter(Boolean).join(" ") || "(Unnamed)";
   const fmt = (d?: Date | null) => (d ? new Date(d).toLocaleDateString() : "—");
