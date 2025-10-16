@@ -1,6 +1,7 @@
+// src/app/admin/clients/[id]/brief/page.tsx
 import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
-import { prisma } from "@/lib/prisma";                // ⬅️ swap to alias
+import { prisma } from "@/prisma";                 // ✅ use src/prisma.ts
 import { getAdvisorIdFromCookie } from "@/lib/session";
 
 export const dynamic = "force-dynamic";

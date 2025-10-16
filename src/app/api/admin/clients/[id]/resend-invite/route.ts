@@ -2,7 +2,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";                  // ⬅️ swap to alias
+import { prisma } from "@/prisma";                  // ✅ use src/prisma.ts
 import { getAdvisorIdFromCookie } from "@/lib/session";
 import { sendMail } from "@/lib/mailer";
 
@@ -52,7 +52,6 @@ If you have any questions, reply to this email and your advisor will help you co
   }
 }
 
-// Optional: friendlier GET for browser checks
 export async function GET() {
   return NextResponse.json(
     { ok: false, error: "Use POST /api/admin/clients/[id]/resend-invite" },
