@@ -1,175 +1,124 @@
+// src/components/GoalEditor.tsx
 "use client";
 
-import * as React from "react";
-import GoalGrid, { GoalsDetail, GoalDetail } from "./GoalGrid";
-import FlagThisField from "./FlagThisField";
+import { useMemo } from "react";
+import FlagThisField from "@/components/FlagThisField";
+import { RISK_OPTIONS, TIME_HORIZON, RANGE_STD } from "@/lib/validations";
 
-const PRESET_GOALS = ["retirement", "education", "home", "income", "growth"] as const;
-const RISK = ["conservative", "moderate", "aggressive"] as const;
-const HORIZON = ["<1y", "1-3y", "3-5y", "5-10y", "10+y"] as const;
+type GoalDetail = {
+  risk?: string;
+  horizon?: string;
+  amountBand?: string;
+  priority?: boolean;
+};
 
-export default function GoalEditor({
-  value,
-  onChange,
-}: {
-  value: GoalsDetail | undefined;
-  onChange: (next: GoalsDetail) => void;
-}) {
-  const [local, setLocal] = React.useState<GoalsDetail>(value ?? {});
-  const [other, setOther] = React.useState("");
+type Props = {
+  value: Record<string, GoalDetail>;
+  onChange: (next: Record<string, GoalDetail>) => void;
+  /** Optional — if provided, we'll show the "Need help" flag button per row */
+  token?: string;
+  email?: string;
+};
 
-  React.useEffect(() => setLocal(value ?? {}), [value]);
+const normalize = (s: string) =>
+  (s || "")
+    .replace(/[–—]/g, "-")
+    .replace(/\s*\(\S.*?\)\s*/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^\w+-]/g, "")
+    .toLowerCase();
 
-  function toggleGoal(key: string) {
-    const next = { ...local };
-    if (next[key]) {
-      delete next[key];
-    } else {
-      next[key] = { risk: "moderate", horizon: "5-10y" };
-    }
-    setLocal(next);
+export default function GoalEditor({ value, onChange, token, email }: Props) {
+  const keys = useMemo(() => Object.keys(value || {}), [value]);
+
+  if (!keys.length) {
+    return (
+      <div className="text-sm text-slate-600">
+        No goals selected yet — choose goals on the previous step.
+      </div>
+    );
+  }
+
+  function update(key: string, patch: Partial<GoalDetail>) {
+    const next = { ...value, [key]: { ...(value[key] || {}), ...patch } };
     onChange(next);
   }
-
-  function patch(key: string, partial: Partial<GoalDetail>) {
-    const next = { ...local, [key]: { ...(local[key] ?? {}), ...partial } };
-    setLocal(next);
-    onChange(next);
-  }
-
-  function addOther() {
-    const k = other.trim().toLowerCase();
-    if (!k) return;
-    if (!local[k]) {
-      const next = { ...local, [k]: { risk: "moderate", horizon: "3-5y" } };
-      setLocal(next);
-      onChange(next);
-    }
-    setOther("");
-  }
-
-  const selectedKeys = Object.keys(local);
 
   return (
-    <div className="space-y-6">
-      {/* chips */}
-      <div className="flex flex-wrap gap-2">
-        {PRESET_GOALS.map((g) => {
-          const active = !!local[g];
-          return (
-            <button
-              key={g}
-              type="button"
-              onClick={() => toggleGoal(g)}
-              className={`px-3 py-1 rounded-full border text-sm ${
-                active ? "bg-black text-white" : "hover:bg-gray-100"
-              }`}
-            >
-              {capitalize(g)}
-            </button>
-          );
-        })}
-        <div className="flex items-center gap-2">
-          <input
-            value={other}
-            onChange={(e) => setOther(e.target.value)}
-            placeholder="Other goal…"
-            className="border rounded-md px-2 py-1 text-sm"
-          />
-          <button
-            type="button"
-            onClick={addOther}
-            className="px-2 py-1 text-sm border rounded-md"
-          >
-            Add
-          </button>
-        </div>
-      </div>
-
-      {/* rows */}
-      <div className="space-y-3">
-        {selectedKeys.map((key) => {
-          const g = local[key] ?? {};
-          return (
-            <div
-              key={key}
-              className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end border rounded-xl p-3"
-            >
-              <div className="md:col-span-1">
-                <label className="text-xs uppercase tracking-wide">Goal</label>
-                <div className="font-medium">{beautify(key)}</div>
-              </div>
-
-              <div>
-                <label className="text-xs">Risk tolerance</label>
-                <select
-                  className="w-full border rounded-md px-2 py-1"
-                  value={g.risk ?? "moderate"}
-                  onChange={(e) => patch(key, { risk: e.target.value })}
-                >
-                  {RISK.map((r) => (
-                    <option key={r} value={r}>
-                      {capitalize(r)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs">Time horizon</label>
-                <select
-                  className="w-full border rounded-md px-2 py-1"
-                  value={g.horizon ?? "3-5y"}
-                  onChange={(e) => patch(key, { horizon: e.target.value })}
-                >
-                  {HORIZON.map((h) => (
-                    <option key={h} value={h}>
-                      {h}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs">Amount band</label>
+    <div className="grid gap-3 sm:grid-cols-2">
+      {keys.map((key) => {
+        const d = value[key] || {};
+        return (
+          <div key={key} className="rounded-xl border p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-sm font-medium capitalize">{key}</div>
+              <label className="flex items-center gap-2">
                 <input
-                  className="w-full border rounded-md px-2 py-1"
-                  placeholder='e.g., "100-250k" or "1-2M"'
-                  value={g.amountBand ?? ""}
-                  onChange={(e) => patch(key, { amountBand: e.target.value })}
+                  type="checkbox"
+                  checked={!!d.priority}
+                  onChange={(e) => update(key, { priority: e.target.checked })}
                 />
-              </div>
-
-              <div className="flex items-center justify-between md:justify-start gap-3">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={!!g.priority}
-                    onChange={(e) => patch(key, { priority: e.target.checked })}
-                  />
-                  <span className="text-sm">Mark priority</span>
-                </label>
-                <FlagThisField fieldPath={`goalsDetail.${key}`} />
-              </div>
+                <span className="text-sm">Mark priority</span>
+              </label>
             </div>
-          );
-        })}
-      </div>
 
-      {/* live viz */}
-      <GoalGrid goalsDetail={local} />
+            <label className="text-xs block mb-2">
+              <span className="mb-1 block text-slate-700">Risk</span>
+              <select
+                className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+                value={d.risk || ""}
+                onChange={(e) => update(key, { risk: normalize(e.target.value) })}
+              >
+                <option value="">Use overall</option>
+                {RISK_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-      {/* tip */}
-      <p className="text-xs text-gray-500">
-        Dots update live: X = risk, Y = horizon, size = amount/priority.
-      </p>
+            <label className="text-xs block mb-2">
+              <span className="mb-1 block text-slate-700">Time horizon</span>
+              <select
+                className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+                value={d.horizon || ""}
+                onChange={(e) => update(key, { horizon: normalize(e.target.value) })}
+              >
+                <option value="">Use overall</option>
+                {TIME_HORIZON.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-xs block mb-1">
+              <span className="mb-1 block text-slate-700">Amount (range)</span>
+              <select
+                className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+                value={d.amountBand || ""}
+                onChange={(e) => update(key, { amountBand: e.target.value })}
+              >
+                <option value="">Not sure</option>
+                {RANGE_STD.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* Need-help flag (only if token+email provided) */}
+            {token && email ? (
+              <div className="-mt-1">
+                <FlagThisField token={token} email={email} fieldKey={`goalsDetail.${key}`} />
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
-}
-
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-function beautify(s: string) {
-  return s.split(/[_-]/).map(capitalize).join(" ");
 }
