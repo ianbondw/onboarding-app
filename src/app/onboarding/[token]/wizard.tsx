@@ -22,6 +22,160 @@ import FlagThisField from "@/components/FlagThisField";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
+/** ---- helpers for amount <-> band mapping ---- **/
+const MONEY_BANDS = ["<100k","100-250k","250-500k","500k-1M","1-3M","3M+"] as const;
+
+function toNumberUSD(s: string) {
+  // "250000" or "$250,000" → 250000
+  const n = Number(String(s).replace(/[$,\s]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+function amountToBand(v: number): string {
+  if (v <= 0) return "";
+  if (v < 100_000) return "<100k";
+  if (v < 250_000) return "100-250k";
+  if (v < 500_000) return "250-500k";
+  if (v < 1_000_000) return "500k-1M";
+  if (v < 3_000_000) return "1-3M";
+  return "3M+";
+}
+function bandToExample(band: string) {
+  switch (band) {
+    case "<100k": return "$0–$100k";
+    case "100-250k": return "$100k–$250k";
+    case "250-500k": return "$250k–$500k";
+    case "500k-1M": return "$500k–$1M";
+    case "1-3M": return "$1M–$3M";
+    case "3M+": return "$3M+";
+    default: return "—";
+  }
+}
+// Combine two range labels into one rough band (pick the larger bucket).
+function combineTwo(a?: string, b?: string) {
+  const ranks = MONEY_BANDS;
+  const ra = ranks.indexOf((a || "") as any);
+  const rb = ranks.indexOf((b || "") as any);
+  const idx = Math.max(ra, rb);
+  return idx >= 0 ? ranks[idx] : "";
+}
+// Normalize to lower_snake-ish strings
+function normalize(label: string): string {
+  if (!label) return "";
+  return label
+    .replace(/[–—]/g, "-")
+    .replace(/\s*\(\S.*?\)\s*/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^\w+-]/g, "")
+    .toLowerCase();
+}
+// Convert "100-250k" -> "$100–250k", "<100k" -> "<$100k"
+function formatMoney(band: string) {
+  if (!band) return "";
+  const s = band.replace(/-/g, "–");
+  if (s.startsWith("<")) return "<$" + s.slice(1);
+  if (/^\$/.test(s)) return s;
+  if (/^\d/.test(s)) return "$" + s;
+  return s;
+}
+function moneyify(band: string) {
+  return band ? formatMoney(band) : "—";
+}
+
+/** ---- tiny widget that lets users enter an amount or pick a band ---- **/
+function AmountOrSelect({
+  label,
+  valueBand,
+  setValueBand,
+  tooltip,
+}: {
+  label: string;
+  valueBand: string;
+  setValueBand: (v: string) => void;
+  tooltip?: string;
+}) {
+  const [useAmount, setUseAmount] = useState(false);
+  const [amount, setAmount] = useState("");
+
+  function applyAmount(v: string) {
+    setAmount(v);
+    const band = amountToBand(toNumberUSD(v));
+    setValueBand(band);
+  }
+
+  return (
+    <div className="text-sm">
+      <div className="mb-1 flex items-center justify-between text-slate-700">
+        <div className="flex items-center gap-2">
+          <span>{label}</span>
+          {tooltip ? <span title={tooltip} className="cursor-help text-xs text-slate-500">ⓘ</span> : null}
+        </div>
+        <button type="button" className="text-xs underline" onClick={()=>setUseAmount(!useAmount)}>
+          {useAmount ? "Choose range" : "Enter amount"}
+        </button>
+      </div>
+
+      {!useAmount ? (
+        <select
+          className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+          value={valueBand}
+          onChange={e=>setValueBand(e.target.value)}
+        >
+          <option value="">Select…</option>
+          {RANGE_STD.map((o)=> (
+            <option key={o} value={o}>
+              {formatMoney(o)}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <div className="flex items-center gap-2">
+          <input
+            inputMode="numeric"
+            placeholder="$250,000"
+            className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+            value={amount}
+            onChange={(e)=>applyAmount(e.target.value)}
+          />
+          <div className="whitespace-nowrap text-xs text-slate-500">
+            → {valueBand ? bandToExample(valueBand) : "—"}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** ---- Live risk × time 9-box (no deps) ---- **/
+function RiskHorizonNineBox({ risk, horizon }: { risk: string; horizon: string }) {
+  const riskIdx = ["conservative","moderate","growth","aggressive"].indexOf(normalize(risk));
+  const horIdx  = ["<3y","3-5y","5-10y","10+y"].indexOf(normalize(horizon));
+  const x = Math.max(0, riskIdx);
+  const y = Math.max(0, horIdx);
+
+  return (
+    <div className="sm:col-span-2 mt-2">
+      <div className="text-sm font-medium mb-1">Your balance of risk & time</div>
+      <div className="relative grid grid-cols-4 grid-rows-4 gap-[2px] bg-slate-200 p-[2px] rounded-md w-full max-w-md">
+        {Array.from({ length: 16 }).map((_, i) => (
+          <div key={i} className="h-10 bg-white" />
+        ))}
+        <div
+          className="absolute size-3 rounded-full bg-black"
+          style={{
+            // 4 cols/rows -> cell size approx 25%
+            left: `calc(${(x + 0.5) * 25}% - 6px)`,
+            top: `calc(${(y + 0.5) * 25}% - 6px)`,
+          }}
+          title={`${risk || "—"} × ${horizon || "—"}`}
+        />
+      </div>
+      <div className="mt-2 flex justify-between text-[11px] text-slate-500 max-w-md">
+        <span>Conservative</span><span>Moderate</span><span>Growth</span><span>Aggressive</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Wizard({ token }: { token: string }) {
   const [step, setStep] = useState<Step>(0);
 
@@ -36,7 +190,7 @@ export default function Wizard({ token }: { token: string }) {
   const [annualIncomeBand, setAnnualIncomeBand] = useState<string>("");
   const [sourceOfFunds, setSourceOfFunds]       = useState<string[]>([]); // multi
 
-  // Assets in plain English
+  // Assets in plain English (bands)
   const [cashBand, setCashBand]                 = useState<string>("");
   const [investmentsBand, setInvestmentsBand]   = useState<string>("");
   const [retirementBand, setRetirementBand]     = useState<string>("");
@@ -58,6 +212,18 @@ export default function Wizard({ token }: { token: string }) {
   const [idDocType, setIdDocType]         = useState<string>("");
   const [idDocUrl, setIdDocUrl]           = useState("");
   const [consentAccepted, setConsent]     = useState(false);
+
+  // --- Next conversation topic ---
+  const NEXT_TOPIC_PRESETS = [
+    "Walk through my investments",
+    "Retirement readiness check",
+    "Taxes & liquidity planning",
+    "Education/529 plan",
+    "Estate & beneficiaries",
+    "Something else (I’ll type it)",
+  ];
+  const [nextTopicPreset, setNextTopicPreset] = useState("");
+  const [nextTopicText, setNextTopicText]     = useState("");
 
   const netWorthBand = useMemo(
     () =>
@@ -102,6 +268,10 @@ export default function Wizard({ token }: { token: string }) {
     try {
       const fullName = `${firstName} ${lastName}`.trim();
 
+      const conversation = nextTopicPreset === "Something else (I’ll type it)"
+        ? nextTopicText
+        : nextTopicPreset;
+
       const body = {
         // identifiers
         fullName, firstName, lastName, email, phone,
@@ -110,7 +280,7 @@ export default function Wizard({ token }: { token: string }) {
         employmentStatus: normalize(employmentStatus),
         employerName,
         annualIncomeBand: normalize(annualIncomeBand),
-        sourceOfFunds: sourceOfFunds.join(", "), // keep your server expectations
+        sourceOfFunds: sourceOfFunds.join(", "),
 
         // assets/liabilities & derived bands
         liquidAssetsBand,
@@ -137,6 +307,9 @@ export default function Wizard({ token }: { token: string }) {
         ssn, // last-4 for demo
         idDocType: normalize(idDocType) || null,
         idDocUrl: idDocUrl || null,
+
+        // store “next conversation topic” into concernsNarrative (no schema change)
+        concernsNarrative: conversation?.trim() || null,
 
         consentAccepted,
       };
@@ -197,7 +370,6 @@ export default function Wizard({ token }: { token: string }) {
               required
               tooltip="Your current work situation."
             />
-            {/* Client can flag this field */}
             <div className="sm:col-span-2 -mt-2">
               <FlagThisField token={token} email={email} fieldKey="employmentStatus" className="mt-1" />
             </div>
@@ -212,7 +384,6 @@ export default function Wizard({ token }: { token: string }) {
               money
               required
             />
-            {/* Client can flag this field */}
             <div className="sm:col-span-2 -mt-2">
               <FlagThisField token={token} email={email} fieldKey="annualIncomeBand" className="mt-1" />
             </div>
@@ -231,12 +402,42 @@ export default function Wizard({ token }: { token: string }) {
       {step === 2 && (
         <Card title="Assets & accounts">
           <Grid>
-            <Select label={ASSET_BUCKETS.cash}        value={cashBand}        onChange={setCashBand}        options={RANGE_STD} money tooltip="Checking/savings." />
-            <Select label={ASSET_BUCKETS.investments} value={investmentsBand} onChange={setInvestmentsBand} options={RANGE_STD} money tooltip="Brokerage, ETFs, stocks, bonds." />
-            <Select label={ASSET_BUCKETS.retirement}  value={retirementBand}  onChange={setRetirementBand}  options={RANGE_STD} money tooltip="401(k), IRA, etc." />
-            <Select label={ASSET_BUCKETS.realEstate}  value={realEstateBand}  onChange={setRealEstateBand}  options={RANGE_STD} money tooltip="Estimate equity (value minus mortgage)." />
-            <Select label={ASSET_BUCKETS.otherAssets} value={otherAssetsBand} onChange={setOtherAssetsBand} options={RANGE_STD} money tooltip="Private investments, collectibles, vested options, etc." />
-            <Select label={ASSET_BUCKETS.debts}       value={debtsBand}       onChange={setDebtsBand}       options={RANGE_STD} money tooltip="Mortgage balance, student/auto loans, cards." />
+            <AmountOrSelect
+              label={ASSET_BUCKETS.cash}
+              valueBand={cashBand}
+              setValueBand={setCashBand}
+              tooltip="Checking/savings."
+            />
+            <AmountOrSelect
+              label={ASSET_BUCKETS.investments}
+              valueBand={investmentsBand}
+              setValueBand={setInvestmentsBand}
+              tooltip="Brokerage, ETFs, stocks, bonds."
+            />
+            <AmountOrSelect
+              label={ASSET_BUCKETS.retirement}
+              valueBand={retirementBand}
+              setValueBand={setRetirementBand}
+              tooltip="401(k), IRA, etc."
+            />
+            <AmountOrSelect
+              label={ASSET_BUCKETS.realEstate}
+              valueBand={realEstateBand}
+              setValueBand={setRealEstateBand}
+              tooltip="Estimate equity (value minus mortgage)."
+            />
+            <AmountOrSelect
+              label={ASSET_BUCKETS.otherAssets}
+              valueBand={otherAssetsBand}
+              setValueBand={setOtherAssetsBand}
+              tooltip="Private investments, collectibles, vested options, etc."
+            />
+            <AmountOrSelect
+              label={ASSET_BUCKETS.debts}
+              valueBand={debtsBand}
+              setValueBand={setDebtsBand}
+              tooltip="Mortgage balance, student/auto loans, cards."
+            />
           </Grid>
 
           <div className="mt-4 rounded-md border p-3 text-sm">
@@ -259,21 +460,43 @@ export default function Wizard({ token }: { token: string }) {
           <Grid>
             <Select label="Risk tolerance"  value={riskTolerance} onChange={setRiskTolerance} options={RISK_OPTIONS} required />
             <Select label="Time horizon"    value={timeHorizon}   onChange={setTimeHorizon}   options={TIME_HORIZON} required tooltip="When you expect to use this money." />
+            <RiskHorizonNineBox risk={riskTolerance} horizon={timeHorizon} />
+
             <Multi  label="Primary goals (select all that apply)" values={primaryGoals} onToggle={(v)=>toggleMulti(primaryGoals, v, setPrimaryGoals)} options={PRIMARY_GOALS} />
 
             <Select label="Liquidity needs" value={liquidityNeeds} onChange={setLiquidity} options={LIQUIDITY_NEEDS} tooltip="How quickly you might need cash without large losses." />
-            {/* Client can flag this field */}
             <div className="sm:col-span-2 -mt-2">
               <FlagThisField token={token} email={email} fieldKey="liquidityNeeds" className="mt-1" />
             </div>
 
             <Multi  label="Preferences & restrictions (optional)" values={constraints} onToggle={(v)=>toggleMulti(constraints, v, setConstraints)} options={CONSTRAINTS} />
-            {/* Client can flag this field */}
             <div className="sm:col-span-2 -mt-2">
               <FlagThisField token={token} email={email} fieldKey="constraints" className="mt-1" />
             </div>
 
             <Select label="Investment experience" value={investmentExperience} onChange={setExperience} options={EXPERIENCE} />
+
+            {/* Next conversation topic */}
+            <div className="sm:col-span-2">
+              <div className="mb-1 text-slate-700 text-sm">What would you like to discuss next?</div>
+              <select
+                className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+                value={nextTopicPreset}
+                onChange={(e)=>setNextTopicPreset(e.target.value)}
+              >
+                <option value="">Select…</option>
+                {NEXT_TOPIC_PRESETS.map((o)=> <option key={o} value={o}>{o}</option>)}
+              </select>
+              {nextTopicPreset === "Something else (I’ll type it)" && (
+                <textarea
+                  className="mt-2 w-full rounded-md border p-2 text-sm outline-none focus:ring-2 focus:ring-black/10"
+                  rows={3}
+                  placeholder="Tell your advisor what you’d like to cover…"
+                  value={nextTopicText}
+                  onChange={(e)=>setNextTopicText(e.target.value)}
+                />
+              )}
+            </div>
           </Grid>
           <Nav step={step} setStep={setStep} canNext />
         </Card>
@@ -344,6 +567,12 @@ export default function Wizard({ token }: { token: string }) {
                   ["Experience", investmentExperience || "—"],
                 ],
               },
+              {
+                title: "Next conversation",
+                rows: [
+                  ["Topic", (nextTopicPreset === "Something else (I’ll type it)" ? nextTopicText : nextTopicPreset) || "—"],
+                ],
+              },
             ]}
           />
 
@@ -359,20 +588,6 @@ export default function Wizard({ token }: { token: string }) {
               {submitting ? "Submitting…" : "Submit"}
             </button>
           </div>
-
-          <details className="mt-4 text-xs text-slate-500">
-            <summary>Show raw payload</summary>
-            <pre className="max-h-96 whitespace-pre-wrap">
-              {JSON.stringify({
-                firstName, lastName, email, phone,
-                employmentStatus, employerName, annualIncomeBand, sourceOfFunds,
-                cashBand, investmentsBand, retirementBand, realEstateBand, otherAssetsBand, debtsBand,
-                netWorthBand, accounts,
-                riskTolerance, timeHorizon, primaryGoals, liquidityNeeds, constraints, investmentExperience,
-                ssn, idDocType, idDocUrl, consentAccepted,
-              }, null, 2)}
-            </pre>
-          </details>
         </Card>
       )}
     </div>
@@ -509,39 +724,4 @@ function Summary({ sections }: { sections: { title: string; rows: [string,string
       ))}
     </div>
   );
-}
-
-/* ============ Helpers ============ */
-
-// Combine two range labels into one rough band (pick the larger bucket).
-function combineTwo(a?: string, b?: string) {
-  const ranks = ["<100k","100-250k","250-500k","500k-1M","1-3M","3M+"];
-  const ra = ranks.indexOf(a || "");
-  const rb = ranks.indexOf(b || "");
-  const idx = Math.max(ra, rb);
-  return idx >= 0 ? ranks[idx] : "";
-}
-
-// Normalize to lower_snake-ish strings
-function normalize(label: string): string {
-  if (!label) return "";
-  return label
-    .replace(/[–—]/g, "-")
-    .replace(/\s*\(\S.*?\)\s*/g, "")
-    .replace(/\s+/g, "_")
-    .replace(/[^\w+-]/g, "")
-    .toLowerCase();
-}
-
-// Convert "100-250k" -> "$100–250k", "<100k" -> "<$100k"
-function formatMoney(band: string) {
-  if (!band) return "";
-  const s = band.replace(/-/g, "–");
-  if (s.startsWith("<")) return "<$" + s.slice(1);
-  if (/^\$/.test(s)) return s;         // already contains $
-  if (/^\d/.test(s)) return "$" + s;
-  return s;
-}
-function moneyify(band: string) {
-  return band ? formatMoney(band) : "—";
 }

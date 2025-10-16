@@ -2,9 +2,8 @@
 export const runtime = "nodejs"; // Prisma needs Node runtime on Vercel
 
 import { NextResponse, NextRequest } from "next/server";
-import { prisma } from "../../../../prisma";          // ✅ use your existing helper (no @/lib/prisma)
+import { prisma } from "../../../../prisma";          // keep your existing helper
 import { setSentryTagsServer } from "@/lib/sentry-tags";
-import { sendMail } from "@/lib/mailer";              // ✅ notify advisor on successful submission
 
 /* ------------------------- Rate limiter (in-memory) ------------------------- */
 const RATE_BUCKETS = new Map<string, { count: number; resetAt: number }>();
@@ -195,6 +194,9 @@ export async function POST(req: NextRequest, context: any) {
       // identity / docs
       ssn, idDocType, idDocUrl, proofOfAddressUrl,
       consentAccepted,
+
+      // narratives
+      introNarrative, goalsNarrative, concernsNarrative, // ← store next-topic in concernsNarrative
     } = body ?? {};
 
     // Minimal but strict: require email (unique key) and some name signal
@@ -216,7 +218,6 @@ export async function POST(req: NextRequest, context: any) {
     const consentAcceptedAt = consentAccepted ? new Date() : null;
 
     // 🔗 UPSERT the client **scoped to this advisor**
-    //    Requires schema: @@unique([advisorId, email]) on Client
     const client = await prisma.client.upsert({
       where: { advisorId_email: { advisorId, email } },
       create: {
@@ -240,6 +241,11 @@ export async function POST(req: NextRequest, context: any) {
         constraints: Array.isArray(constraints) ? constraints : [],
         investmentExperience,
 
+        // narratives
+        introNarrative: introNarrative ?? null,
+        goalsNarrative: goalsNarrative ?? null,
+        concernsNarrative: concernsNarrative ?? null,
+
         idDocType, idDocUrl, proofOfAddressUrl,
         consentAcceptedAt,
         onboardingStatus: "in_progress",
@@ -259,6 +265,11 @@ export async function POST(req: NextRequest, context: any) {
         constraints: Array.isArray(constraints) ? constraints : [],
         investmentExperience,
 
+        // narratives
+        introNarrative: introNarrative ?? null,
+        goalsNarrative: goalsNarrative ?? null,
+        concernsNarrative: concernsNarrative ?? null,
+
         idDocType, idDocUrl, proofOfAddressUrl,
         consentAcceptedAt,
         onboardingStatus: "in_progress",
@@ -267,7 +278,7 @@ export async function POST(req: NextRequest, context: any) {
       select: { id: true },
     });
 
-    // Refresh product recs atomically to avoid duplicates on resubmits
+    // Refresh product recs atomically
     const recs = matchProducts({
       riskTolerance,
       timeHorizon,
@@ -294,22 +305,6 @@ export async function POST(req: NextRequest, context: any) {
         : []),
     ]);
 
-    // ✅ Advisor notification (non-blocking if email config is missing)
-    try {
-      const dashboardUrl =
-        (process.env.NEXT_PUBLIC_ADMIN_ORIGIN || "https://marengofinance-admin.com") + "/admin/clients";
-      await sendMail({
-        to: process.env.CONTACT_TO || "", // later: replace with advisor email from DB when available
-        subject: "New client submission",
-        text: `A client submitted for advisor ${advisorId}.
-Client ID: ${client.id}
-Dashboard: ${dashboardUrl}`,
-      });
-    } catch (mailErr) {
-      // Never fail the intake on email issues
-      console.warn("Advisor notify email failed (safe to ignore):", mailErr);
-    }
-
     return json({ ok: true, token, advisorId, clientId: client.id, recommendations: recs }, 201);
   } catch (e: any) {
     const status = e?.status || 500;
@@ -326,7 +321,6 @@ export async function GET() {
   return json({ error: "Method not allowed." }, 405);
 }
 
-/* ----------------------------- Local utilities ----------------------------- */
 function splitFullName(name: string): [string, string] {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 0) return ["", ""];
