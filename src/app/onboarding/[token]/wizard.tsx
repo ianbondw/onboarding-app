@@ -142,44 +142,6 @@ function AmountOrSelect({
   );
 }
 
-/** ---- tiny 9-box for overall risk×time ---- **/
-function RiskHorizonNineBox({ risk, horizon }: { risk: string; horizon: string }) {
-  const riskIdx = ["conservative","moderate","growth","aggressive"].indexOf(normalize(risk));
-  const horIdx  = ["<3y","3-5y","5-10y","10+y"].indexOf(normalize(horizon));
-  const x = Math.max(0, riskIdx);
-  const y = Math.max(0, horIdx);
-
-  return (
-    <div className="sm:col-span-2 mt-2">
-      <div className="text-sm font-medium mb-1">Your balance of risk & time</div>
-      <div className="relative grid grid-cols-4 grid-rows-4 gap-[2px] bg-slate-200 p-[2px] rounded-md w-full max-w-md">
-        {Array.from({ length: 16 }).map((_, i) => (
-          <div key={i} className="h-10 bg-white" />
-        ))}
-        <div
-          className="absolute size-3 rounded-full bg-black"
-          style={{
-            left: `calc(${(x + 0.5) * 25}% - 6px)`,
-            top: `calc(${(y + 0.5) * 25}% - 6px)`,
-          }}
-          title={`${risk || "—"} × ${horizon || "—"}`}
-        />
-      </div>
-      <div className="mt-2 flex justify-between text-[11px] text-slate-500 max-w-md">
-        <span>Conservative</span><span>Moderate</span><span>Growth</span><span>Aggressive</span>
-      </div>
-    </div>
-  );
-}
-
-const PRESET_TOPICS = [
-  "Retirement income",
-  "College planning",
-  "Taxes",
-  "Insurance review",
-  "Investments",
-];
-
 export default function Wizard({ token }: { token: string }) {
   const [step, setStep] = useState<Step>(0);
 
@@ -204,22 +166,16 @@ export default function Wizard({ token }: { token: string }) {
 
   const [accounts, setAccounts] = useState<string[]>([]); // multi
 
-  // Overall goals & risk
-  const [riskTolerance, setRiskTolerance] = useState<string>("");
-  const [timeHorizon, setTimeHorizon]     = useState<string>("");
+  // Overall goals (we'll collect per-goal risk/horizon on next step)
+  const [riskTolerance, setRiskTolerance] = useState<string>(""); // kept for back-compat defaults
+  const [timeHorizon, setTimeHorizon]     = useState<string>(""); // kept for back-compat defaults
   const [primaryGoals, setPrimaryGoals]   = useState<string[]>([]);
-  const [liquidityNeeds, setLiquidity]    = useState<string>("");
+  const [liquidityNeeds, setLiquidity]    = useState<string>(""); // not shown overall anymore
   const [constraints, setConstraints]     = useState<string[]>([]);
   const [investmentExperience, setExperience] = useState<string>("");
 
-  // Per-goal detail (extendable: risk/horizon/liquidity/amount/priority)
-  type GoalDetail = {
-    risk: string;
-    horizon: string;
-    liquidity?: string;
-    amountBand?: string;
-    priority?: boolean;
-  };
+  // Per-goal detail
+  type GoalDetail = { risk?: string; horizon?: string; liquidity?: string; amountBand?: string; priority?: boolean };
   const [goalsDetail, setGoalsDetail] = useState<Record<string, GoalDetail>>({});
 
   // Identity (demo)
@@ -228,16 +184,23 @@ export default function Wizard({ token }: { token: string }) {
   const [idDocUrl, setIdDocUrl]           = useState("");
   const [consentAccepted, setConsent]     = useState(false);
 
-  // Topics (chips + free-text + notes)
+  // Topics
+  const PRESET_TOPICS = [
+    "Walk through my investments",
+    "Retirement readiness check",
+    "Taxes & liquidity planning",
+    "Education/529 plan",
+    "Estate & beneficiaries",
+    "Something else (I’ll type it)",
+  ];
   const [topicChips, setTopicChips] = useState<string[]>([]);
   const [topicFree, setTopicFree]   = useState("");
   const [concernsNarrative, setConcernsNarrative] = useState("");
 
-  // Keep goalsDetail keys in sync with selected goals (back-compat)
+  // Keep goalsDetail keys in sync with selected goals (use sensible defaults if no overall set)
   useEffect(() => {
     setGoalsDetail(prev => {
       const next = { ...prev };
-      // add any new goals with sensible defaults (mirror overall selections)
       for (const g of primaryGoals) {
         if (!next[g]) next[g] = {
           risk: normalize(riskTolerance) || "moderate",
@@ -245,7 +208,6 @@ export default function Wizard({ token }: { token: string }) {
           liquidity: normalize(liquidityNeeds) || "some",
         };
       }
-      // drop keys for goals that were unselected
       for (const k of Object.keys(next)) {
         if (!primaryGoals.includes(k)) delete (next as any)[k];
       }
@@ -295,7 +257,7 @@ export default function Wizard({ token }: { token: string }) {
     try {
       const fullName = `${firstName} ${lastName}`.trim();
 
-      // Topics: chips + free-text + longer notes → single narrative string
+      // Topics: chips + free-text + notes → single narrative string
       const mergedTopics = [
         ...topicChips,
         ...(topicFree.trim() ? [topicFree.trim()] : []),
@@ -331,13 +293,11 @@ export default function Wizard({ token }: { token: string }) {
         hasCrypto: accounts.includes("Crypto"),
         hasRealEstate: accounts.includes("Real Estate"),
 
-        // goals & risk
-        riskTolerance: normalize(riskTolerance),
-        timeHorizon: normalize(timeHorizon),
-        primaryGoals: derivedPrimary.length > 0
-          ? derivedPrimary.map(normalize)
-          : primaryGoals.map(normalize),
-        liquidityNeeds: normalize(liquidityNeeds),
+        // goals (overall risk/horizon now optional; per-goal is source of truth)
+        riskTolerance: riskTolerance ? normalize(riskTolerance) : undefined,
+        timeHorizon: timeHorizon ? normalize(timeHorizon) : undefined,
+        primaryGoals: (derivedPrimary.length > 0 ? derivedPrimary : primaryGoals).map(normalize),
+        liquidityNeeds: liquidityNeeds ? normalize(liquidityNeeds) : undefined,
         constraints: constraints.map(normalize),
         investmentExperience: normalize(investmentExperience),
 
@@ -466,29 +426,43 @@ export default function Wizard({ token }: { token: string }) {
       )}
 
       {step === 3 && (
-        <Card title="Goals & risk">
-          <Grid>
-            <Select label="Risk tolerance"  value={riskTolerance} onChange={setRiskTolerance} options={RISK_OPTIONS} required />
-            <Select label="Time horizon"    value={timeHorizon}   onChange={setTimeHorizon}   options={TIME_HORIZON} required tooltip="When you expect to use this money." />
-            <RiskHorizonNineBox risk={riskTolerance} horizon={timeHorizon} />
+        <Card title="Goals">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Multi
+              label="Primary goals (select all that apply)"
+              values={primaryGoals}
+              onToggle={(v)=>toggleMulti(primaryGoals, v, setPrimaryGoals)}
+              options={PRIMARY_GOALS}
+            />
 
-            <Multi  label="Primary goals (select all that apply)" values={primaryGoals} onToggle={(v)=>toggleMulti(primaryGoals, v, setPrimaryGoals)} options={PRIMARY_GOALS} />
-
-            <Select label="Liquidity needs" value={liquidityNeeds} onChange={setLiquidity} options={LIQUIDITY_NEEDS} tooltip="How quickly you might need cash without large losses." />
-            <div className="sm:col-span-2 -mt-2">
-              <FlagThisField token={token} email={email} fieldKey="liquidityNeeds" className="mt-1" />
+            <Select
+              label="Preferences & restrictions (optional)"
+              value="" onChange={()=>{}}
+              options={[]}
+            />
+            {/* Replace the dummy select above with spacing; keep real controls below */}
+            <div className="sm:col-span-2">
+              <Multi
+                label="Preferences & restrictions (optional)"
+                values={constraints}
+                onToggle={(v)=>toggleMulti(constraints, v, setConstraints)}
+                options={CONSTRAINTS}
+              />
+              <div className="-mt-2">
+                <FlagThisField token={token} email={email} fieldKey="constraints" className="mt-1" />
+              </div>
             </div>
 
-            <Multi  label="Preferences & restrictions (optional)" values={constraints} onToggle={(v)=>toggleMulti(constraints, v, setConstraints)} options={CONSTRAINTS} />
-            <div className="sm:col-span-2 -mt-2">
-              <FlagThisField token={token} email={email} fieldKey="constraints" className="mt-1" />
-            </div>
+            <Select
+              label="Investment experience"
+              value={investmentExperience}
+              onChange={setExperience}
+              options={EXPERIENCE}
+            />
+          </div>
 
-            <Select label="Investment experience" value={investmentExperience} onChange={setExperience} options={EXPERIENCE} />
-          </Grid>
-
-          {/* Topics for next meeting */}
-          <div className="mt-4 sm:col-span-2">
+          {/* Topics for next meeting (consistent font) */}
+          <div className="mt-4">
             <div className="mb-1 text-sm font-medium text-slate-900">Topics for our next meeting</div>
             <div className="mb-2 flex flex-wrap gap-2">
               {PRESET_TOPICS.map((t) => {
@@ -510,13 +484,13 @@ export default function Wizard({ token }: { token: string }) {
               })}
             </div>
             <input
-              className="mb-2 w-full rounded-md border px-3 py-2"
+              className="mb-2 w-full rounded-md border px-3 py-2 text-sm"
               placeholder='Enter a topic not listed (e.g., "Equity comp")'
               value={topicFree}
               onChange={(e)=>setTopicFree(e.target.value)}
             />
             <textarea
-              className="w-full rounded-md border px-3 py-2"
+              className="w-full rounded-md border px-3 py-2 text-sm"
               rows={4}
               value={concernsNarrative}
               onChange={(e)=>setConcernsNarrative(e.target.value)}
@@ -529,9 +503,9 @@ export default function Wizard({ token }: { token: string }) {
       )}
 
       {step === 4 && (
-        <Card title="Goal details (fine-tune by goal)">
+        <Card title="Goal details (per goal)">
           <div className="space-y-4">
-            <GoalEditor value={goalsDetail as any} onChange={setGoalsDetail as any} />
+            <GoalEditor value={goalsDetail as any} onChange={setGoalsDetail as any} token={token} email={email} />
           </div>
           <Nav step={step} setStep={setStep} canNext />
         </Card>
@@ -592,12 +566,9 @@ export default function Wizard({ token }: { token: string }) {
                 ],
               },
               {
-                title: "Goals & risk",
+                title: "Goals",
                 rows: [
-                  ["Overall risk", riskTolerance || "—"],
-                  ["Overall horizon", timeHorizon || "—"],
                   ["Primary goals", (primaryGoals.length ? primaryGoals : Object.keys(goalsDetail)).join(", ") || "—"],
-                  ["Overall liquidity", liquidityNeeds || "—"],
                   ["Preferences / restrictions", constraints.join(", ") || "—"],
                   ["Experience", investmentExperience || "—"],
                 ],
@@ -606,7 +577,7 @@ export default function Wizard({ token }: { token: string }) {
                 title: "Per-goal details",
                 rows: Object.keys(goalsDetail).map((g) => ([
                   g,
-                  `${goalsDetail[g]?.risk || "(overall)"} × ${goalsDetail[g]?.horizon || "(overall)"}${
+                  `${goalsDetail[g]?.risk || "(default)"} × ${goalsDetail[g]?.horizon || "(default)"}${
                     goalsDetail[g]?.liquidity ? ` · ${goalsDetail[g]?.liquidity}` : ""
                   }${goalsDetail[g]?.amountBand ? ` · ${goalsDetail[g]?.amountBand}` : ""}${
                     goalsDetail[g]?.priority ? " · priority" : ""
@@ -737,7 +708,7 @@ function Nav({ step, setStep, canNext }: { step: Step; setStep: (s: Step)=>void;
   );
 }
 function Stepper({ step }: { step: number }) {
-  const steps = ["About you","Work & income","Assets & accounts","Goals & risk","Goal details","Identity verify","Review & submit"];
+  const steps = ["About you","Work & income","Assets & accounts","Goals","Goal details","Identity verify","Review & submit"];
   return (
     <div className="flex flex-wrap gap-2 text-xs text-slate-600">
       {steps.map((s, i)=> (

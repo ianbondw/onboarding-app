@@ -3,13 +3,14 @@
 
 import { useMemo } from "react";
 import FlagThisField from "@/components/FlagThisField";
-import { RISK_OPTIONS, TIME_HORIZON, RANGE_STD } from "@/lib/validations";
+import { RISK_OPTIONS, TIME_HORIZON, RANGE_STD, LIQUIDITY_NEEDS } from "@/lib/validations";
 
 type GoalDetail = {
   risk?: string;
   horizon?: string;
   amountBand?: string;
   priority?: boolean;
+  liquidity?: string;
 };
 
 type Props = {
@@ -69,7 +70,7 @@ export default function GoalEditor({ value, onChange, token, email }: Props) {
                 value={d.risk || ""}
                 onChange={(e) => update(key, { risk: normalize(e.target.value) })}
               >
-                <option value="">Use overall</option>
+                <option value="">Use default</option>
                 {RISK_OPTIONS.map((o) => (
                   <option key={o} value={o}>
                     {o}
@@ -85,8 +86,24 @@ export default function GoalEditor({ value, onChange, token, email }: Props) {
                 value={d.horizon || ""}
                 onChange={(e) => update(key, { horizon: normalize(e.target.value) })}
               >
-                <option value="">Use overall</option>
+                <option value="">Use default</option>
                 {TIME_HORIZON.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-xs block mb-2">
+              <span className="mb-1 block text-slate-700">Liquidity need</span>
+              <select
+                className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
+                value={d.liquidity || ""}
+                onChange={(e) => update(key, { liquidity: normalize(e.target.value) })}
+              >
+                <option value="">Use default</option>
+                {LIQUIDITY_NEEDS.map((o) => (
                   <option key={o} value={o}>
                     {o}
                   </option>
