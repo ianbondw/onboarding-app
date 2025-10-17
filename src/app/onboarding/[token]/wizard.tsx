@@ -510,6 +510,7 @@ export default function Wizard({ token }: { token: string }) {
                 label: key,
                 risk: d?.risk,
                 horizon: d?.horizon,
+                liquidity: d?.liquidity,
                 amountBand: d?.amountBand,
               }))}
               cashBand={cashBand}

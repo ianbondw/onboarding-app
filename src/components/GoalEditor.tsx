@@ -6,9 +6,9 @@ import FlagThisField from "@/components/FlagThisField";
 import { RANGE_STD } from "@/lib/validations";
 
 type GoalDetail = {
-  risk?: string;        // conservative | moderate | growth | aggressive
-  horizon?: string;     // <3y | 3-5y | 5-10y | 10+y
-  liquidity?: string;   // none | some | high
+  risk?: string;        // very_conservative | conservative | balanced | moderate | growth | aggressive | very_aggressive
+  horizon?: string;     // <1y | 1-3y | 3-5y | 5-7y | 7-10y | 10-15y | 15+y
+  liquidity?: string;   // daily | monthly | quarterly | annual | illiquid_ok
   amountBand?: string;  // "<100k" | "100-250k" | ...
   priority?: boolean;
 };
@@ -20,7 +20,6 @@ type Props = {
   email: string;
 };
 
-/** Normalization & label maps */
 const normalize = (s: string) =>
   s
     ?.toLowerCase()
@@ -30,23 +29,31 @@ const normalize = (s: string) =>
     .replace(/[^\w+<>\-y]/g, "") || "";
 
 const RISK_OPTS = [
-  { value: "conservative", label: "Conservative" },
-  { value: "moderate", label: "Moderate" },
-  { value: "growth", label: "Growth" },
-  { value: "aggressive", label: "Aggressive" },
+  { value: "very_conservative", label: "Very Conservative" },
+  { value: "conservative",      label: "Conservative" },
+  { value: "balanced",          label: "Balanced" },
+  { value: "moderate",          label: "Moderate" },
+  { value: "growth",            label: "Growth" },
+  { value: "aggressive",        label: "Aggressive" },
+  { value: "very_aggressive",   label: "Very Aggressive" },
 ];
 
 const HORIZON_OPTS = [
-  { value: "<3y", label: "< 3 years" },
-  { value: "3-5y", label: "3–5 years" },
-  { value: "5-10y", label: "5–10 years" },
-  { value: "10+y", label: "10+ years" },
+  { value: "<1y",    label: "< 1 year" },
+  { value: "1-3y",   label: "1–3 years" },
+  { value: "3-5y",   label: "3–5 years" },
+  { value: "5-7y",   label: "5–7 years" },
+  { value: "7-10y",  label: "7–10 years" },
+  { value: "10-15y", label: "10–15 years" },
+  { value: "15+y",   label: "15+ years" },
 ];
 
 const LIQ_OPTS = [
-  { value: "none", label: "None" },
-  { value: "some", label: "Some" },
-  { value: "high", label: "High" },
+  { value: "daily",        label: "Daily access (highest liquidity)" },
+  { value: "monthly",      label: "Monthly access" },
+  { value: "quarterly",    label: "Quarterly access" },
+  { value: "annual",       label: "Annual access" },
+  { value: "illiquid_ok",  label: "Illiquid OK (long lockups)" },
 ];
 
 function cap(s: string) {
@@ -90,16 +97,11 @@ export default function GoalEditor({ value, onChange, token, email }: Props) {
               <select
                 className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
                 value={detail.risk ?? ""} // "" means "Use default"
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setPatch(key, { risk: v || undefined });
-                }}
+                onChange={(e) => setPatch(key, { risk: e.target.value || undefined })}
               >
                 <option value="">Use default</option>
                 {RISK_OPTS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </label>
@@ -110,16 +112,11 @@ export default function GoalEditor({ value, onChange, token, email }: Props) {
               <select
                 className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
                 value={detail.horizon ?? ""}
-                onChange={(e) => {
-                  const v = normalize(e.target.value);
-                  setPatch(key, { horizon: v || undefined });
-                }}
+                onChange={(e) => setPatch(key, { horizon: normalize(e.target.value) || undefined })}
               >
                 <option value="">Use default</option>
                 {HORIZON_OPTS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </label>
@@ -130,16 +127,11 @@ export default function GoalEditor({ value, onChange, token, email }: Props) {
               <select
                 className="w-full rounded-md border bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
                 value={detail.liquidity ?? ""}
-                onChange={(e) => {
-                  const v = normalize(e.target.value);
-                  setPatch(key, { liquidity: v || undefined });
-                }}
+                onChange={(e) => setPatch(key, { liquidity: normalize(e.target.value) || undefined })}
               >
                 <option value="">Use default</option>
                 {LIQ_OPTS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </label>
@@ -154,9 +146,7 @@ export default function GoalEditor({ value, onChange, token, email }: Props) {
               >
                 <option value="">Select…</option>
                 {RANGE_STD.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
+                  <option key={o} value={o}>{o}</option>
                 ))}
               </select>
             </label>
