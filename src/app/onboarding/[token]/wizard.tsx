@@ -20,6 +20,7 @@ import {
 } from "@/lib/validations";
 import FlagThisField from "@/components/FlagThisField";
 import GoalEditor from "@/components/GoalEditor";
+import GoalFeasibility from "@/components/GoalFeasibility";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -166,11 +167,11 @@ export default function Wizard({ token }: { token: string }) {
 
   const [accounts, setAccounts] = useState<string[]>([]); // multi
 
-  // Overall goals (we'll collect per-goal risk/horizon on next step)
-  const [riskTolerance, setRiskTolerance] = useState<string>(""); // kept for back-compat defaults
-  const [timeHorizon, setTimeHorizon]     = useState<string>(""); // kept for back-compat defaults
+  // Overall goals (per-goal risk/horizon handled next step)
+  const [riskTolerance, setRiskTolerance] = useState<string>(""); // kept for defaults/back-compat
+  const [timeHorizon, setTimeHorizon]     = useState<string>(""); // kept for defaults/back-compat
   const [primaryGoals, setPrimaryGoals]   = useState<string[]>([]);
-  const [liquidityNeeds, setLiquidity]    = useState<string>(""); // not shown overall anymore
+  const [liquidityNeeds, setLiquidity]    = useState<string>(""); // optional overall
   const [constraints, setConstraints]     = useState<string[]>([]);
   const [investmentExperience, setExperience] = useState<string>("");
 
@@ -197,7 +198,7 @@ export default function Wizard({ token }: { token: string }) {
   const [topicFree, setTopicFree]   = useState("");
   const [concernsNarrative, setConcernsNarrative] = useState("");
 
-  // Keep goalsDetail keys in sync with selected goals (use sensible defaults if no overall set)
+  // Keep goalsDetail keys in sync with selected goals
   useEffect(() => {
     setGoalsDetail(prev => {
       const next = { ...prev };
@@ -265,7 +266,7 @@ export default function Wizard({ token }: { token: string }) {
       const concernsOut =
         [mergedTopics, concernsNarrative].filter(Boolean).join("\n\n") || null;
 
-      // If user marked priorities inside goalsDetail, derive primaryGoals from those (back-compat)
+      // If some goals are marked priority, derive primaryGoals from them (back-compat)
       const derivedPrimary = Object.entries(goalsDetail)
         .filter(([, g]) => g?.priority)
         .map(([k]) => k);
@@ -293,7 +294,7 @@ export default function Wizard({ token }: { token: string }) {
         hasCrypto: accounts.includes("Crypto"),
         hasRealEstate: accounts.includes("Real Estate"),
 
-        // goals (overall risk/horizon now optional; per-goal is source of truth)
+        // goals (overall risk/horizon optional; per-goal = source of truth)
         riskTolerance: riskTolerance ? normalize(riskTolerance) : undefined,
         timeHorizon: timeHorizon ? normalize(timeHorizon) : undefined,
         primaryGoals: (derivedPrimary.length > 0 ? derivedPrimary : primaryGoals).map(normalize),
@@ -301,7 +302,7 @@ export default function Wizard({ token }: { token: string }) {
         constraints: constraints.map(normalize),
         investmentExperience: normalize(investmentExperience),
 
-        // per-goal detail is the source of truth
+        // per-goal detail
         goalsDetail,
 
         // identity (demo)
@@ -435,12 +436,7 @@ export default function Wizard({ token }: { token: string }) {
               options={PRIMARY_GOALS}
             />
 
-            <Select
-              label="Preferences & restrictions (optional)"
-              value="" onChange={()=>{}}
-              options={[]}
-            />
-            {/* Replace the dummy select above with spacing; keep real controls below */}
+            {/* Removed empty dropdown. Keep real prefs below */}
             <div className="sm:col-span-2">
               <Multi
                 label="Preferences & restrictions (optional)"
@@ -506,6 +502,20 @@ export default function Wizard({ token }: { token: string }) {
         <Card title="Goal details (per goal)">
           <div className="space-y-4">
             <GoalEditor value={goalsDetail as any} onChange={setGoalsDetail as any} token={token} email={email} />
+
+            {/* NEW: rough feasibility visualization */}
+            <GoalFeasibility
+              items={Object.entries(goalsDetail).map(([key, d]) => ({
+                key,
+                label: key,
+                risk: d?.risk,
+                horizon: d?.horizon,
+                amountBand: d?.amountBand,
+              }))}
+              cashBand={cashBand}
+              investmentsBand={investmentsBand}
+              retirementBand={retirementBand}
+            />
           </div>
           <Nav step={step} setStep={setStep} canNext />
         </Card>
