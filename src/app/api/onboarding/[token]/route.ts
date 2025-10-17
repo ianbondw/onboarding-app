@@ -2,12 +2,12 @@
 export const runtime = "nodejs"; // Prisma needs Node runtime on Vercel
 
 import { NextResponse, NextRequest } from "next/server";
-import { prisma } from "../../../../prisma";          // keep your existing helper
+import { prisma } from "../../../../prisma"; // keep your existing helper
 import { setSentryTagsServer } from "@/lib/sentry-tags";
 
 /* ------------------------- Rate limiter (in-memory) ------------------------- */
 const RATE_BUCKETS = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 8;          // 8 requests
+const RATE_LIMIT = 8; // 8 requests
 const RATE_WINDOW_MS = 60_000; // per 60s window
 
 function keyFor(req: Request, token: string) {
@@ -144,40 +144,51 @@ function isPlainObject(v: unknown): v is Record<string, any> {
   return !!v && Object.prototype.toString.call(v) === "[object Object]";
 }
 
-/* -------------------- Progress snapshot (server-computed) ------------------- */
-type SectionFlags = {
-  profile?: boolean;
-  assets?: boolean;
-  liabilities?: boolean;
-  goals?: boolean;
-  concerns?: boolean;
-};
+/* ------------------- Server-side completion computation -------------------- */
+function computeCompletion(input: {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
 
-function computeProgressSnapshot(payload: any, existing: any = {}): { progress: number; snapshot: SectionFlags } {
-  // Merge the incoming payload with any existing DB values
-  const merged = { ...(existing ?? {}), ...(payload ?? {}) };
+  employmentStatus?: string;
+  annualIncomeBand?: string;
 
-  const hasProfile =
-    !!merged.firstName || !!merged.lastName || !!merged.phone || !!merged.email;
-  const hasAssets =
-    !!merged.netWorthBand || !!merged.liquidAssetsBand || !!merged.illiquidAssetsBand;
-  const hasLiabilities =
-    !!merged.liabilitiesBand;
-  const hasGoals =
-    !!merged.goalsDetail || (Array.isArray(merged.primaryGoals) && merged.primaryGoals.length > 0);
-  const hasConcerns =
-    typeof merged.concernsNarrative === "string" && merged.concernsNarrative.trim().length > 0;
+  liquidAssetsBand?: string;
+  illiquidAssetsBand?: string;
+  liabilitiesBand?: string;
+  netWorthBand?: string;
 
-  const flags: SectionFlags = {
-    profile: !!hasProfile,
-    assets: !!hasAssets,
-    liabilities: !!hasLiabilities,
-    goals: !!hasGoals,
-    concerns: !!hasConcerns,
+  hasIRA?: boolean;
+  has401k?: boolean;
+  hasTaxable?: boolean;
+  hasCrypto?: boolean;
+  hasRealEstate?: boolean;
+
+  primaryGoals?: string[];
+  goalsDetail?: Record<string, any> | undefined;
+
+  consentAccepted?: boolean;
+}) {
+  const sections = {
+    identity: !!((input.firstName || input.lastName) && input.email),
+    work: !!(input.employmentStatus && input.annualIncomeBand),
+    assets:
+      !!(input.liquidAssetsBand ||
+      input.illiquidAssetsBand ||
+      input.liabilitiesBand ||
+      input.netWorthBand),
+    accounts:
+      [input.hasIRA, input.has401k, input.hasTaxable, input.hasCrypto, input.hasRealEstate].some(
+        (v) => typeof v === "boolean"
+      ),
+    goals: Array.isArray(input.primaryGoals) && input.primaryGoals.length > 0,
+    per_goal: !!(input.goalsDetail && Object.keys(input.goalsDetail).length > 0),
+    consent: !!input.consentAccepted,
   };
-  const total = Object.values(flags).filter(Boolean).length;
-  const progress = Math.round((total / 5) * 100);
-  return { progress, snapshot: flags };
+  const total = Object.keys(sections).length;
+  const done = Object.values(sections).filter(Boolean).length;
+  const pct = Math.max(0, Math.min(100, Math.round((done / total) * 100)));
+  return { pct, sections };
 }
 /* --------------------------------------------------------------------------- */
 
@@ -221,26 +232,56 @@ export async function POST(req: NextRequest, context: any) {
     const {
       // identifiers
       fullName,
-      firstName, lastName, email, phone,
-      dateOfBirth, addressLine1, addressLine2, city, state, postalCode, country, citizenship,
+      firstName,
+      lastName,
+      email,
+      phone,
+      dateOfBirth,
+      addressLine1,
+      addressLine2,
+      city,
+      state,
+      postalCode,
+      country,
+      citizenship,
 
       // financial
-      employmentStatus, employerName, annualIncomeBand, sourceOfFunds,
-      liquidAssetsBand, illiquidAssetsBand, liabilitiesBand, netWorthBand,
-      hasIRA, has401k, hasTaxable, hasCrypto, hasRealEstate,
+      employmentStatus,
+      employerName,
+      annualIncomeBand,
+      sourceOfFunds,
+      liquidAssetsBand,
+      illiquidAssetsBand,
+      liabilitiesBand,
+      netWorthBand,
+      hasIRA,
+      has401k,
+      hasTaxable,
+      hasCrypto,
+      hasRealEstate,
 
       // risk/goals
-      riskTolerance, timeHorizon, primaryGoals, liquidityNeeds, constraints, investmentExperience,
+      riskTolerance,
+      timeHorizon,
+      primaryGoals,
+      liquidityNeeds,
+      constraints,
+      investmentExperience,
 
       // per-goal detail
       goalsDetail,
 
       // identity / docs
-      ssn, idDocType, idDocUrl, proofOfAddressUrl,
+      ssn,
+      idDocType,
+      idDocUrl,
+      proofOfAddressUrl,
       consentAccepted,
 
       // narratives (store next-topic in concernsNarrative)
-      introNarrative, goalsNarrative, concernsNarrative,
+      introNarrative,
+      goalsNarrative,
+      concernsNarrative,
     } = body ?? {};
 
     // Minimal but strict: require email (unique key) and some name signal
@@ -252,11 +293,10 @@ export async function POST(req: NextRequest, context: any) {
       return json({ error: "Please enter a valid email address." }, 400);
     }
     const firstNameSafe = typeof firstName === "string" ? firstName : "";
-    const lastNameSafe  = typeof lastName  === "string" ? lastName  : "";
-    const nameFallback  = typeof fullName  === "string" ? fullName.trim() : "";
-    const [nf, nl]      = (!firstNameSafe && !lastNameSafe && nameFallback)
-      ? splitFullName(nameFallback)
-      : [firstNameSafe, lastNameSafe];
+    const lastNameSafe = typeof lastName === "string" ? lastName : "";
+    const nameFallback = typeof fullName === "string" ? fullName.trim() : "";
+    const [nf, nl] =
+      !firstNameSafe && !lastNameSafe && nameFallback ? splitFullName(nameFallback) : [firstNameSafe, lastNameSafe];
 
     const enc = await encryptPII(ssn);
     const consentAcceptedAt = consentAccepted ? new Date() : null;
@@ -264,23 +304,26 @@ export async function POST(req: NextRequest, context: any) {
     // Only include JSON when it's a plain object; otherwise omit the field.
     const goalsDetailInput = isPlainObject(goalsDetail) ? goalsDetail : undefined;
 
-    // Fetch existing to compute progress snapshot against merged values
-    const existing = await prisma.client.findFirst({
-      where: { advisorId, email },
-      select: {
-        firstName: true, lastName: true, phone: true, email: true,
-        netWorthBand: true, liquidAssetsBand: true, illiquidAssetsBand: true, liabilitiesBand: true,
-        goalsDetail: true, primaryGoals: true, concernsNarrative: true,
-      },
+    // Compute completion snapshot from this payload
+    const { pct: onboardingProgress, sections: sectionCompletion } = computeCompletion({
+      firstName: nf,
+      lastName: nl,
+      email,
+      employmentStatus,
+      annualIncomeBand,
+      liquidAssetsBand,
+      illiquidAssetsBand,
+      liabilitiesBand,
+      netWorthBand,
+      hasIRA,
+      has401k,
+      hasTaxable,
+      hasCrypto,
+      hasRealEstate,
+      primaryGoals,
+      goalsDetail: goalsDetailInput,
+      consentAccepted,
     });
-    const { progress, snapshot } = computeProgressSnapshot(
-      {
-        firstName: nf, lastName: nl, phone, email,
-        netWorthBand, liquidAssetsBand, illiquidAssetsBand, liabilitiesBand,
-        goalsDetail: goalsDetailInput, primaryGoals, concernsNarrative,
-      },
-      existing
-    );
 
     // 🔗 UPSERT the client **scoped to this advisor**
     const client = await prisma.client.upsert({
@@ -289,18 +332,37 @@ export async function POST(req: NextRequest, context: any) {
         advisorId,
         email,
 
-        firstName: nf, lastName: nl, phone,
+        firstName: nf,
+        lastName: nl,
+        phone,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        addressLine1, addressLine2, city, state, postalCode, country, citizenship,
+        addressLine1,
+        addressLine2,
+        city,
+        state,
+        postalCode,
+        country,
+        citizenship,
 
         ssnCipher: enc.cipher,
         ssnIv: enc.iv,
 
-        employmentStatus, employerName, annualIncomeBand, sourceOfFunds,
-        liquidAssetsBand, illiquidAssetsBand, liabilitiesBand, netWorthBand,
-        hasIRA: !!hasIRA, has401k: !!has401k, hasTaxable: hasTaxable !== false, hasCrypto: !!hasCrypto, hasRealEstate: !!hasRealEstate,
+        employmentStatus,
+        employerName,
+        annualIncomeBand,
+        sourceOfFunds,
+        liquidAssetsBand,
+        illiquidAssetsBand,
+        liabilitiesBand,
+        netWorthBand,
+        hasIRA: !!hasIRA,
+        has401k: !!has401k,
+        hasTaxable: hasTaxable !== false,
+        hasCrypto: !!hasCrypto,
+        hasRealEstate: !!hasRealEstate,
 
-        riskTolerance, timeHorizon,
+        riskTolerance,
+        timeHorizon,
         primaryGoals: Array.isArray(primaryGoals) ? primaryGoals : [],
         liquidityNeeds,
         constraints: Array.isArray(constraints) ? constraints : [],
@@ -315,23 +377,44 @@ export async function POST(req: NextRequest, context: any) {
         concernsNarrative: concernsNarrative ?? null,
 
         // server-computed progress
-        onboardingProgress: progress,
-        sectionCompletion: snapshot as any,
+        onboardingProgress,
+        sectionCompletion: sectionCompletion as any,
 
-        idDocType, idDocUrl, proofOfAddressUrl,
+        idDocType,
+        idDocUrl,
+        proofOfAddressUrl,
         consentAcceptedAt,
         onboardingStatus: "in_progress",
       },
       update: {
-        firstName: nf, lastName: nl, phone,
+        firstName: nf,
+        lastName: nl,
+        phone,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        addressLine1, addressLine2, city, state, postalCode, country, citizenship,
+        addressLine1,
+        addressLine2,
+        city,
+        state,
+        postalCode,
+        country,
+        citizenship,
 
-        employmentStatus, employerName, annualIncomeBand, sourceOfFunds,
-        liquidAssetsBand, illiquidAssetsBand, liabilitiesBand, netWorthBand,
-        hasIRA: !!hasIRA, has401k: !!has401k, hasTaxable: hasTaxable !== false, hasCrypto: !!hasCrypto, hasRealEstate: !!hasRealEstate,
+        employmentStatus,
+        employerName,
+        annualIncomeBand,
+        sourceOfFunds,
+        liquidAssetsBand,
+        illiquidAssetsBand,
+        liabilitiesBand,
+        netWorthBand,
+        hasIRA: !!hasIRA,
+        has401k: !!has401k,
+        hasTaxable: hasTaxable !== false,
+        hasCrypto: !!hasCrypto,
+        hasRealEstate: !!hasRealEstate,
 
-        riskTolerance, timeHorizon,
+        riskTolerance,
+        timeHorizon,
         primaryGoals: Array.isArray(primaryGoals) ? primaryGoals : [],
         liquidityNeeds,
         constraints: Array.isArray(constraints) ? constraints : [],
@@ -346,10 +429,12 @@ export async function POST(req: NextRequest, context: any) {
         concernsNarrative: concernsNarrative ?? null,
 
         // server-computed progress
-        onboardingProgress: progress,
-        sectionCompletion: snapshot as any,
+        onboardingProgress,
+        sectionCompletion: sectionCompletion as any,
 
-        idDocType, idDocUrl, proofOfAddressUrl,
+        idDocType,
+        idDocUrl,
+        proofOfAddressUrl,
         consentAcceptedAt,
         onboardingStatus: "in_progress",
         updatedAt: new Date(),
@@ -372,15 +457,17 @@ export async function POST(req: NextRequest, context: any) {
     await prisma.$transaction([
       prisma.productMatch.deleteMany({ where: { clientId: client.id } }),
       ...(recs.length
-        ? [prisma.productMatch.createMany({
-            data: recs.map(r => ({
-              clientId: client.id,
-              productCode: r.code,
-              productName: r.name,
-              rationale: r.rationale,
-              riskBand: r.risk ?? null,
-            })),
-          })]
+        ? [
+            prisma.productMatch.createMany({
+              data: recs.map((r) => ({
+                clientId: client.id,
+                productCode: r.code,
+                productName: r.name,
+                rationale: r.rationale,
+                riskBand: r.risk ?? null,
+              })),
+            }),
+          ]
         : []),
     ]);
 
