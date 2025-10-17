@@ -58,7 +58,7 @@ async function encryptPII(value?: string) {
   }
 }
 
-// Simple rules-based product matcher (expand as needed)
+// Simple rules-based product matcher (per-goal aware)
 function matchProducts(input: {
   riskTolerance?: string;
   timeHorizon?: string;
@@ -68,62 +68,127 @@ function matchProducts(input: {
   has401k?: boolean;
   hasTaxable?: boolean;
   hasCrypto?: boolean;
+  goalsDetail?: Record<string, { risk?: string; horizon?: string; liquidity?: string; amountBand?: string; priority?: boolean }>;
 }) {
   const recs: { code: string; name: string; rationale: string; risk?: string }[] = [];
   const goals = new Set(input.primaryGoals ?? []);
-  const risk = input.riskTolerance ?? "moderate";
+  const baseRisk = input.riskTolerance ?? "moderate";
+  const gd = input.goalsDetail || {};
 
+  const amountTxt = (band?: string) => (band ? ` (target ${band})` : "");
+
+  // retirement
   if (goals.has("retirement")) {
-    if (input.hasIRA || input.has401k) {
+    const g = gd["retirement"] || {};
+    const risk = g.risk || baseRisk;
+    const hz = g.horizon || input.timeHorizon || "10+y";
+    const liq = g.liquidity || "annual";
+    if (hz === "10+y") {
       recs.push({
         code: "RET-TARGETDATE",
         name: "Target-Date Retirement Strategy",
-        rationale: "Retirement goal; a glidepath auto-adjusts risk over time.",
+        rationale: `Retirement${amountTxt(g.amountBand)} — long horizon (${hz}) allows glidepath; liquidity ${liq}.`,
+        risk,
+      });
+    } else if (hz === "5-10y") {
+      recs.push({
+        code: "RET-BAL-ALLOCATION",
+        name: "Balanced Retirement Allocation",
+        rationale: `Retirement${amountTxt(g.amountBand)} — medium horizon (${hz}); diversified multi-asset. Liquidity ${liq}.`,
         risk,
       });
     } else {
       recs.push({
-        code: "RET-IRA-ROLLOVER",
-        name: "IRA Rollover (Traditional/Roth)",
-        rationale: "No IRA/401k linked; consider a tax-advantaged IRA setup.",
-        risk,
+        code: "RET-LADDER-TREASURY",
+        name: "Treasury/CD Ladder for Near-Term Needs",
+        rationale: `Retirement${amountTxt(g.amountBand)} — short horizon (${hz}); preserve capital with laddered high-quality fixed income.`,
+        risk: "conservative",
       });
     }
   }
 
+  // income
   if (goals.has("income")) {
+    const g = gd["income"] || {};
+    const risk = g.risk || baseRisk;
+    const liq = g.liquidity || "monthly";
     recs.push({
       code: "INC-MUNI",
       name: "Tax-Sensitive Municipal Income",
-      rationale: "Income objective with potential tax efficiency.",
+      rationale: `Income goal${amountTxt(g.amountBand)} — steady after-tax income; liquidity ${liq}.`,
+      risk,
+    });
+    recs.push({
+      code: "INC-LADDER",
+      name: "Treasury/Agency Ladder",
+      rationale: `Income goal — laddered duration to manage reinvestment risk; fits ${liq} liquidity.`,
+      risk: "conservative",
+    });
+  }
+
+  // education
+  if (goals.has("education")) {
+    const g = gd["education"] || {};
+    const risk = g.risk || baseRisk;
+    const hz = g.horizon || "5-10y";
+    recs.push({
+      code: "EDU-529",
+      name: "529 Plan (Age-Based or Custom)",
+      rationale: `Education${amountTxt(g.amountBand)} — ${hz} horizon; tax-advantaged growth with age-based glidepath.`,
       risk,
     });
   }
 
+  // home / major purchase
+  if (goals.has("home") || goals.has("major_purchase")) {
+    const key = goals.has("home") ? "home" : "major_purchase";
+    const g = gd[key] || {};
+    const hz = g.horizon || "<3y";
+    recs.push({
+      code: "PUR-LIQ-RESERVE",
+      name: "High-Liquidity Reserve",
+      rationale: `Near-term ${key.replace("_", " ")}${amountTxt(g.amountBand)} — ${hz} horizon; emphasize capital preservation & liquidity.`,
+      risk: "conservative",
+    });
+  }
+
+  // growth
   if (goals.has("growth")) {
-    if (risk === "aggressive" || risk === "growth") {
+    const g = gd["growth"] || {};
+    const risk = g.risk || baseRisk;
+    if (risk === "aggressive" || risk === "very_aggressive" || risk === "growth") {
       recs.push({
         code: "GRW-CORE-INDEX",
         name: "Core Equity Index + Satellites",
-        rationale: "Higher risk tolerance; pair broad beta with selective tilts.",
+        rationale: `Growth${amountTxt(g.amountBand)} — higher risk tolerance; pair broad beta with selective tilts.`,
         risk,
       });
     } else {
       recs.push({
         code: "GRW-BALANCED",
-        name: "Balanced Allocation",
-        rationale: "Growth goal with moderate risk; diversified multi-asset exposure.",
+        name: "Balanced Growth Allocation",
+        rationale: `Growth${amountTxt(g.amountBand)} — moderate risk; diversified multi-asset approach.`,
         risk,
       });
     }
+  }
+
+  // legacy / estate
+  if (goals.has("estate") || goals.has("legacy") || goals.has("estate_legacy")) {
+    recs.push({
+      code: "LEG-TRUST-CHECK",
+      name: "Trust & Beneficiary Review",
+      rationale: "Legacy/Estate — coordinate titling, TOD/beneficiaries, trust/ILIT review with counsel.",
+      risk: baseRisk,
+    });
   }
 
   if (input.hasCrypto) {
     recs.push({
       code: "ALT-RISK-DISCLOSURE",
       name: "Alternative/Volatility Disclosure",
-      rationale: "Crypto exposure indicated — confirm disclosures and diversification.",
-      risk,
+      rationale: "Crypto exposure indicated — confirm disclosures and sizing within total portfolio risk.",
+      risk: baseRisk,
     });
   }
 
