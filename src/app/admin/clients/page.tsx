@@ -181,7 +181,7 @@ export default async function AdminClients(props: any) {
   const riskEntries = Object.entries(riskMix).sort((a, b) => b[1] - a[1]);
   const goalEntries = Object.entries(goalMix).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const riskMax = Math.max(1, ...riskEntries.map(([, v]) => v));
-  const appOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN || "";
+  const appOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN || "https://marengofinance-app.com";
 
   // Helpers to display friendly labels for onboardingStatus
   const STATUS_FILTERS: { key: string; label: string }[] = [
@@ -293,7 +293,9 @@ export default async function AdminClients(props: any) {
                   <tr key={r.id} className="transition border-t hover:bg-gray-50">
                     <td className="p-2">{created}</td>
                     <td className="p-2">{name}</td>
-                    <td className="p-2">{r.email}</td>
+                    <td className="p-2">
+                      <a className="link" href={`mailto:${r.email}`}>{r.email}</a>
+                    </td>
                     <td className="p-2">{r.riskTolerance ?? "—"}</td>
                     <td className="p-2">{goals}</td>
                     <td className="p-2">
