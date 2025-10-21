@@ -34,12 +34,10 @@ export default async function AdminClients(props: any) {
   if (!advisorId && !ownerMode) {
     return (
       <main className="mx-auto max-w-3xl p-6 space-y-4">
-        <h1 className="text-2xl font-semibold text-red-700">
-          Unauthorized: missing or invalid admin token.
-        </h1>
+        <h1 className="text-2xl font-semibold text-red-700">Unauthorized: missing or invalid admin token.</h1>
         <p className="text-sm text-gray-600">
-          Sign in at <code>/admin/login</code> (owner), or use your personalized
-          link containing <code>?admin_token=...</code> (advisor).
+          Sign in at <code>/admin/login</code> (owner), or use your personalized link containing{" "}
+          <code>?admin_token=...</code> (advisor).
         </p>
       </main>
     );
@@ -49,7 +47,7 @@ export default async function AdminClients(props: any) {
   const firmRaw = Array.isArray(searchParams.firm) ? searchParams.firm[0] : searchParams.firm;
   const firmCodeParam: string | undefined = firmRaw ? String(firmRaw) : undefined;
 
-  // Status filter (maps query ?status= to onboardingStatus)
+  // Status filter
   const statusRaw = Array.isArray(searchParams.status) ? searchParams.status[0] : searchParams.status;
   const statusFilter = (statusRaw ?? "").toString().toLowerCase().trim();
 
@@ -120,7 +118,7 @@ export default async function AdminClients(props: any) {
     onboardingStatus: true,
     onboardingProgress: true,
     intakeToken: true,
-    concernsNarrative: true, // ← next-convo topic
+    concernsNarrative: true, // next-convo topic
     clientFieldFlags: {
       where: { status: "open" },
       select: { id: true },
@@ -129,13 +127,9 @@ export default async function AdminClients(props: any) {
 
   try {
     const baseWhere: any = advisorId ? { advisorId } : {};
-    const whereWithStatus =
-      statusFilter
-        ? {
-            ...baseWhere,
-            onboardingStatus: statusFilter as any, // expects values like "in_progress" | "verified" | "declined"
-          }
-        : baseWhere;
+    const whereWithStatus = statusFilter
+      ? { ...baseWhere, onboardingStatus: statusFilter as any }
+      : baseWhere;
 
     if (hasQ) {
       const all = await prisma.client.findMany({
@@ -181,19 +175,15 @@ export default async function AdminClients(props: any) {
   const riskEntries = Object.entries(riskMix).sort((a, b) => b[1] - a[1]);
   const goalEntries = Object.entries(goalMix).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const riskMax = Math.max(1, ...riskEntries.map(([, v]) => v));
-  // IMPORTANT: default to the live app origin so Actions show even if env is missing.
-  const appOrigin =
-    process.env.NEXT_PUBLIC_APP_ORIGIN || "https://marengofinance-app.com";
+  const appOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN || "https://marengofinance-app.com";
 
-  // Helpers to display friendly labels for onboardingStatus
   const STATUS_FILTERS: { key: string; label: string }[] = [
     { key: "", label: "All" },
     { key: "in_progress", label: "In Progress" },
     { key: "verified", label: "Verified" },
     { key: "declined", label: "Declined" },
   ];
-  const friendlyStatus = (s?: string) =>
-    (s || "in_progress").replace(/_/g, " ");
+  const friendlyStatus = (s?: string) => (s || "in_progress").replace(/_/g, " ");
 
   return (
     <>
@@ -209,9 +199,7 @@ export default async function AdminClients(props: any) {
               {advisorId && (
                 <p className="text-sm text-gray-600">
                   Advisor:&nbsp;
-                  <span className="font-medium text-gray-900">
-                    {advisor?.name ?? "Unknown"}
-                  </span>
+                  <span className="font-medium text-gray-900">{advisor?.name ?? "Unknown"}</span>
                   {advisor?.firm ? <span> — {advisor.firm}</span> : null}
                 </p>
               )}
@@ -263,8 +251,9 @@ export default async function AdminClients(props: any) {
           </section>
         )}
 
-        <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-          <table className="w-full text-[13px]">
+        {/* Make table horizontally scrollable so columns never vanish */}
+        <div className="overflow-x-auto rounded-2xl border bg-white shadow-sm">
+          <table className="w-full min-w-[1200px] text-[13px]">
             <thead className="bg-gray-50">
               <tr className="text-gray-700">
                 <th className="p-2 text-left whitespace-nowrap">Created</th>
@@ -292,8 +281,7 @@ export default async function AdminClients(props: any) {
             <tbody>
               {rows.map((r) => {
                 const created = r?.createdAt ? new Date(r.createdAt).toLocaleString() : "";
-                const name =
-                  `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "(unnamed)";
+                const name = `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() || "(unnamed)";
                 const goals =
                   Array.isArray(r.primaryGoals) && r.primaryGoals.length > 0
                     ? r.primaryGoals.join(", ")
@@ -312,23 +300,20 @@ export default async function AdminClients(props: any) {
                     <td className="p-2 whitespace-nowrap">{r.riskTolerance ?? "—"}</td>
                     <td className="p-2 whitespace-nowrap">{goals}</td>
                     <td className="p-2">
-                      <span className="truncate inline-block max-w-[280px]" title={r.concernsNarrative || undefined}>
+                      <span className="truncate inline-block max-w-[320px]" title={r.concernsNarrative || undefined}>
                         {r.concernsNarrative || "—"}
                       </span>
                     </td>
                     <td className="p-2 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        {/* tiny badge for open client flags */}
                         {openFlagCount > 0 && (
                           <span className="ml-0 inline-flex items-center rounded-full border px-2 py-0.5 text-xs">
                             ⚑ {openFlagCount}
                           </span>
                         )}
-                        {/* status as read-only badge */}
                         <span className="text-xs rounded-md border px-2 py-0.5">
                           {friendlyStatus(r.onboardingStatus)}
                         </span>
-                        {/* quick missing hint (hide on small screens) */}
                         {missing && (
                           <span className="hidden md:inline text-xs text-gray-500">• missing: {missing}</span>
                         )}
@@ -376,8 +361,6 @@ export default async function AdminClients(props: any) {
             </tbody>
           </table>
         </div>
-
-        {/* simple pager removed for brevity if you keep < 20 results; add back if needed */}
       </main>
     </>
   );
