@@ -181,7 +181,9 @@ export default async function AdminClients(props: any) {
   const riskEntries = Object.entries(riskMix).sort((a, b) => b[1] - a[1]);
   const goalEntries = Object.entries(goalMix).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const riskMax = Math.max(1, ...riskEntries.map(([, v]) => v));
-  const appOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN || "https://marengofinance-app.com";
+  // IMPORTANT: default to the live app origin so Actions show even if env is missing.
+  const appOrigin =
+    process.env.NEXT_PUBLIC_APP_ORIGIN || "https://marengofinance-app.com";
 
   // Helpers to display friendly labels for onboardingStatus
   const STATUS_FILTERS: { key: string; label: string }[] = [
@@ -196,7 +198,8 @@ export default async function AdminClients(props: any) {
   return (
     <>
       <SentryInit firmCode={sentryFirmCode} advisorId={advisorId} />
-      <main className="mx-auto max-w-6xl space-y-6 p-6">
+      {/* Wider container so the table breathes */}
+      <main className="mx-auto max-w-7xl space-y-6 p-6">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-3">
             <div>
@@ -261,19 +264,29 @@ export default async function AdminClients(props: any) {
         )}
 
         <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-          <table className="w-full text-sm">
+          <table className="w-full text-[13px]">
             <thead className="bg-gray-50">
               <tr className="text-gray-700">
-                <th className="p-2 text-left">Created</th>
-                <th className="p-2 text-left">Name</th>
-                <th className="p-2 text-left">Email</th>
-                <th className="p-2 text-left">Risk</th>
-                <th className="p-2 text-left">Goals</th>
-                <th className="p-2 text-left">Next conversation</th>
-                <th className="p-2 text-left">Status</th>
-                <th className="p-2 text-left">Progress</th>
-                <th className="p-2 text-left">Brief</th>
-                <th className="p-2 text-left">Actions</th>
+                <th className="p-2 text-left whitespace-nowrap">Created</th>
+                <th className="p-2 text-left whitespace-nowrap">Name</th>
+                <th className="p-2 text-left whitespace-nowrap">Email</th>
+                <th className="p-2 text-left whitespace-nowrap">Risk</th>
+                <th className="p-2 text-left whitespace-nowrap">Goals</th>
+                <th className="p-2 text-left whitespace-nowrap">Next conversation</th>
+                <th className="p-2 text-left whitespace-nowrap">Status</th>
+                <th className="p-2 text-left whitespace-nowrap">Progress</th>
+                <th className="p-2 text-left whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1">
+                    Brief
+                    <span
+                      className="cursor-help text-xs text-gray-500"
+                      title="Opens the printable Client Brief: profile, assets, goals (incl. per-goal settings), recommendations, and open flags."
+                    >
+                      ⓘ
+                    </span>
+                  </span>
+                </th>
+                <th className="p-2 text-left whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -291,19 +304,19 @@ export default async function AdminClients(props: any) {
 
                 return (
                   <tr key={r.id} className="transition border-t hover:bg-gray-50">
-                    <td className="p-2">{created}</td>
-                    <td className="p-2">{name}</td>
-                    <td className="p-2">
+                    <td className="p-2 whitespace-nowrap">{created}</td>
+                    <td className="p-2 whitespace-nowrap">{name}</td>
+                    <td className="p-2 whitespace-nowrap">
                       <a className="link" href={`mailto:${r.email}`}>{r.email}</a>
                     </td>
-                    <td className="p-2">{r.riskTolerance ?? "—"}</td>
-                    <td className="p-2">{goals}</td>
+                    <td className="p-2 whitespace-nowrap">{r.riskTolerance ?? "—"}</td>
+                    <td className="p-2 whitespace-nowrap">{goals}</td>
                     <td className="p-2">
-                      <span className="truncate inline-block max-w-[220px]">
+                      <span className="truncate inline-block max-w-[280px]" title={r.concernsNarrative || undefined}>
                         {r.concernsNarrative || "—"}
                       </span>
                     </td>
-                    <td className="p-2">
+                    <td className="p-2 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         {/* tiny badge for open client flags */}
                         {openFlagCount > 0 && (
@@ -315,13 +328,13 @@ export default async function AdminClients(props: any) {
                         <span className="text-xs rounded-md border px-2 py-0.5">
                           {friendlyStatus(r.onboardingStatus)}
                         </span>
-                        {/* quick missing hint */}
+                        {/* quick missing hint (hide on small screens) */}
                         {missing && (
-                          <span className="text-xs text-gray-500">• missing: {missing}</span>
+                          <span className="hidden md:inline text-xs text-gray-500">• missing: {missing}</span>
                         )}
                       </div>
                     </td>
-                    <td className="p-2" style={{ minWidth: 160 }}>
+                    <td className="p-2" style={{ minWidth: 170 }}>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-2 rounded bg-gray-200">
                           <div
@@ -334,12 +347,12 @@ export default async function AdminClients(props: any) {
                         </span>
                       </div>
                     </td>
-                    <td className="p-2">
+                    <td className="p-2 whitespace-nowrap">
                       <Link className="link underline" href={`/admin/clients/${r.id}/brief`}>
                         Brief
                       </Link>
                     </td>
-                    <td className="p-2">
+                    <td className="p-2 whitespace-nowrap">
                       {inviteUrl ? (
                         <QuickActions
                           inviteUrl={inviteUrl}
