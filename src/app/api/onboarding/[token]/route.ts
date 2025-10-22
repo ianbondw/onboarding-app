@@ -68,7 +68,10 @@ function matchProducts(input: {
   has401k?: boolean;
   hasTaxable?: boolean;
   hasCrypto?: boolean;
-  goalsDetail?: Record<string, { risk?: string; horizon?: string; liquidity?: string; amountBand?: string; priority?: boolean }>;
+  goalsDetail?: Record<
+    string,
+    { risk?: string; horizon?: string; liquidity?: string; amountBand?: string; priority?: boolean }
+  >;
 }) {
   const recs: { code: string; name: string; rationale: string; risk?: string }[] = [];
   const goals = new Set(input.primaryGoals ?? []);
@@ -397,6 +400,9 @@ export async function POST(req: NextRequest, context: any) {
         advisorId,
         email,
 
+        // persist the specific link used for this submission
+        intakeToken: token,
+
         firstName: nf,
         lastName: nl,
         phone,
@@ -452,6 +458,9 @@ export async function POST(req: NextRequest, context: any) {
         onboardingStatus: "in_progress",
       },
       update: {
+        // keep/set the link used for latest submission
+        intakeToken: token,
+
         firstName: nf,
         lastName: nl,
         phone,
@@ -517,6 +526,7 @@ export async function POST(req: NextRequest, context: any) {
       has401k,
       hasTaxable,
       hasCrypto,
+      goalsDetail: goalsDetailInput as any,
     });
 
     await prisma.$transaction([
