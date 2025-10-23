@@ -2,6 +2,7 @@
 import "./globals.css";
 import React from "react";
 import Link from "next/link";
+import BetaBanner from "@/components/BetaBanner";
 
 export const metadata = {
   title: "Marengo Finance — Client Onboarding",
@@ -20,7 +21,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <html lang="en">
-      <body className="surface min-h-screen">
+      <body className="surface min-h-screen antialiased">
+        {/* --- Global beta banner (auto-hides when NEXT_PUBLIC_APP_STAGE !== 'beta' or dismissed) --- */}
+        <BetaBanner />
+
         {/* background orbs */}
         <div className="orbs" aria-hidden="true">
           <span className="orb orb-a" />
@@ -95,7 +99,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* FOOTER */}
           <footer className="mt-16 border-t pt-6 text-sm text-slate-600">
             <div className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
-              <div>© {new Date().getFullYear()} Marengo Finance. All rights reserved.</div>
+              <div>
+                © {new Date().getFullYear()} Marengo Finance. All rights reserved.
+              </div>
               <div className="flex items-center gap-4">
                 <Link className="link" href="/legal/privacy">
                   Privacy
@@ -104,6 +110,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   Terms
                 </Link>
               </div>
+            </div>
+
+            {/* Subtle beta note below legal links */}
+            <div className="mt-3 text-xs text-slate-500">
+              <strong>Beta:</strong> We’re actively onboarding early advisors and
+              refining the product. Please use demo data only; do not submit
+              sensitive personal information.
             </div>
           </footer>
         </div>

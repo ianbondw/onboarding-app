@@ -1,3 +1,4 @@
+// src/app/onboarding/page.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -48,26 +49,40 @@ export default function OnboardingStartPage() {
         Paste an advisor token or generate a demo link. You can also add optional tracking/branding.
       </p>
 
+      {/* Small beta/demo notice for the start page */}
+      <div
+        role="note"
+        aria-label="Beta notice"
+        className="mt-3 rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2"
+      >
+        <strong>Beta:</strong> This flow is part of our private beta. Use demo data only.
+      </div>
+
       <div className="mt-6 space-y-4">
         <label className="block text-sm">
           <span className="mb-1 inline-block text-slate-700">Advisor token</span>
-          <input className="input" value={token} onChange={(e)=>setToken(e.target.value)} placeholder="e.g. pk_live_xxx" />
+          <input
+            className="input"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="e.g. pk_live_xxx"
+          />
         </label>
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="block text-sm">
             <span className="mb-1 inline-block text-slate-700">Contact tag (optional)</span>
-            <input className="input" value={contact} onChange={(e)=>setContact(e.target.value)} placeholder="Joe" />
+            <input className="input" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Joe" />
           </label>
           <label className="block text-sm">
             <span className="mb-1 inline-block text-slate-700">Brand name (optional)</span>
-            <input className="input" value={brandName} onChange={(e)=>setBrandName(e.target.value)} placeholder="Bond Wealth" />
+            <input className="input" value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder="Bond Wealth" />
           </label>
         </div>
 
         <label className="block text-sm">
           <span className="mb-1 inline-block text-slate-700">Brand logo URL (optional)</span>
-          <input className="input" value={brandLogo} onChange={(e)=>setBrandLogo(e.target.value)} placeholder="https://.../logo.png" />
+          <input className="input" value={brandLogo} onChange={(e) => setBrandLogo(e.target.value)} placeholder="https://.../logo.png" />
         </label>
 
         {err && <p className="text-sm text-red-700">{err}</p>}
@@ -81,7 +96,7 @@ export default function OnboardingStartPage() {
         </div>
 
         <div className="text-xs text-slate-500">
-          Tip: share links like <code>?contact=NAME&amp;brandName=Firm</code> for attribution & white-label header.
+          Tip: share links like <code>?contact=NAME&amp;brandName=Firm</code> for attribution &amp; white-label header.
         </div>
       </div>
     </main>

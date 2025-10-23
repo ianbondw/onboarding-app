@@ -22,7 +22,7 @@ export default async function TokenOnboardingPage(props: any) {
       : undefined;
 
   return (
-    <div className="mx-auto max-w-4xl py-6">
+    <div className="py-2">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Client Onboarding</h1>
 
