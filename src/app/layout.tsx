@@ -102,6 +102,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <div>
                 © {new Date().getFullYear()} Marengo Finance. All rights reserved.
               </div>
+
               <div className="flex items-center gap-4">
                 <Link className="link" href="/legal/privacy">
                   Privacy
@@ -109,6 +110,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link className="link" href="/legal/terms">
                   Terms
                 </Link>
+                <a
+                  className="link"
+                  href="https://x.com/MarengoFinance"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  X / Twitter
+                </a>
               </div>
             </div>
 
