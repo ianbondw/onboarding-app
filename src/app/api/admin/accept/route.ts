@@ -1,52 +1,86 @@
-// src/app/api/admin/accept/route.ts
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { verifyAdvisorToken } from "@/lib/jwt";
-
-const ADVISOR_COOKIE = "advisor_admin";
-const OWNER_COOKIE = "admin_token";
+import {
+  clearPortalSessionCookie,
+  createPortalSession,
+  sanitizeNextPath,
+  setPortalSessionCookie,
+} from "@/lib/admin-auth";
+import { prisma } from "@/prisma";
+import { recordAuditLog, recordLifecycleEvent } from "@/lib/lifecycle";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const token = url.searchParams.get("admin_token") || "";
-  const next = url.searchParams.get("next") || "/admin/clients";
+  const nextPath = sanitizeNextPath(url.searchParams.get("next"), "/admin/clients");
 
   try {
-    // verifyAdvisorToken returns { advisorId } or null
     const payload = verifyAdvisorToken(token);
-    const advisorId = (payload as any)?.advisorId || (payload as any)?.sub || (payload as any)?.id;
+    const advisorId =
+      (payload as any)?.advisorId || (payload as any)?.sub || (payload as any)?.id;
     if (!advisorId) throw new Error("Invalid advisor token");
 
-    const location = new URL(next, url.origin);
+    const advisor = await prisma.advisor.findUnique({
+      where: { id: advisorId },
+      select: { id: true, name: true, email: true },
+    });
+    if (!advisor) throw new Error("Advisor not found");
 
-    const res = NextResponse.redirect(location, { status: 303 });
+    const advisorUser = advisor.email
+      ? await prisma.portalUser.findUnique({
+          where: { email: advisor.email.toLowerCase() },
+          select: {
+            id: true,
+            role: true,
+            advisorId: true,
+            isActive: true,
+          },
+        })
+      : null;
+
+    const created = await createPortalSession({
+      role: "advisor",
+      userId:
+        advisorUser?.role === "advisor" &&
+        advisorUser.isActive &&
+        advisorUser.advisorId === advisor.id
+          ? advisorUser.id
+          : null,
+      advisorId: advisor.id,
+      label: advisor.email || advisor.name,
+    });
+
+    const res = NextResponse.redirect(new URL(nextPath, url.origin), { status: 303 });
     res.headers.set("Cache-Control", "no-store");
+    clearPortalSessionCookie(res);
+    setPortalSessionCookie(res, created.token, created.ttlSec);
+    res.cookies.set("admin_token", "", { path: "/", maxAge: 0 });
+    res.cookies.set("advisor_admin", "", { path: "/", maxAge: 0 });
 
-    // Store advisor scope (ID is fine; your session helper handles raw ID or JWT)
-    res.cookies.set({
-      name: ADVISOR_COOKIE,
-      value: advisorId,
-      httpOnly: true,
-      sameSite: "lax",
-      secure: true,
-      path: "/",
-      maxAge: 60 * 60 * 24 * 180, // 180 days
-    });
-
-    // Clear owner cookie to prevent "All Advisors" mode
-    res.cookies.set({
-      name: OWNER_COOKIE,
-      value: "",
-      httpOnly: true,
-      sameSite: "lax",
-      secure: true,
-      path: "/",
-      maxAge: 0,
-    });
+    await Promise.allSettled([
+      recordLifecycleEvent({
+        eventType: "advisor.login_link.accepted",
+        actorRole: "advisor",
+        advisorId: advisor.id,
+        metadata: { nextPath },
+      }),
+      recordAuditLog({
+        actorRole: "advisor",
+        actorLabel: advisor.email || advisor.name,
+        advisorId: advisor.id,
+        action: "advisor.session.created",
+        targetType: "session",
+        metadata: { nextPath },
+      }),
+    ]);
 
     return res;
   } catch {
-    return NextResponse.json({ error: "Invalid admin_token" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(
+      { error: "Invalid admin_token" },
+      { status: 400, headers: { "Cache-Control": "no-store" } }
+    );
   }
 }

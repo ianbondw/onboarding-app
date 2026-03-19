@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/prisma";
+import { recordLifecycleEvent } from "@/lib/lifecycle";
 
 function json(data: any, status = 200) {
   return NextResponse.json(data, {
@@ -62,6 +63,14 @@ export async function POST(req: NextRequest, context: any) {
       },
       select: { id: true, createdAt: true },
     });
+
+    await recordLifecycleEvent({
+      eventType: "client.field.flagged",
+      actorRole: "client",
+      advisorId,
+      clientId: client.id,
+      metadata: { fieldKey, flagId: flag.id },
+    }).catch(() => null);
 
     return json({ ok: true, flagId: flag.id });
   } catch (e) {

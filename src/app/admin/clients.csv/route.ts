@@ -1,7 +1,6 @@
-// src/app/admin/clients.csv/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "../../../prisma";
-import { getAdvisorIdFromCookie } from "../../../lib/session";
+import { getAdminAccess } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +11,15 @@ function toCsvCell(v: unknown) {
 }
 
 export async function GET() {
-  const advisorId = await getAdvisorIdFromCookie();
-  if (!advisorId) {
+  const access = await getAdminAccess();
+  if (!access) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
+  const where = access.role === "advisor" ? { advisorId: access.advisorId || "" } : {};
+
   const rows = await prisma.client.findMany({
-    where: { advisorId },
+    where,
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -27,15 +28,20 @@ export async function GET() {
       lastName: true,
       email: true,
       phone: true,
+      advisorName: true,
+      advisorFirm: true,
       riskTolerance: true,
       timeHorizon: true,
       primaryGoals: true,
+      onboardingStatus: true,
     },
   });
 
   const header = [
     "id",
     "createdAt",
+    "advisorName",
+    "advisorFirm",
     "firstName",
     "lastName",
     "email",
@@ -43,12 +49,15 @@ export async function GET() {
     "riskTolerance",
     "timeHorizon",
     "primaryGoals",
+    "onboardingStatus",
   ].join(",");
 
   const lines = rows.map((r) =>
     [
       r.id,
       r.createdAt?.toISOString() ?? "",
+      r.advisorName ?? "",
+      r.advisorFirm ?? "",
       r.firstName ?? "",
       r.lastName ?? "",
       r.email ?? "",
@@ -56,9 +65,10 @@ export async function GET() {
       r.riskTolerance ?? "",
       r.timeHorizon ?? "",
       Array.isArray(r.primaryGoals) ? r.primaryGoals.join("|") : "",
+      r.onboardingStatus ?? "",
     ]
       .map(toCsvCell)
-      .join(","),
+      .join(",")
   );
 
   const csv = [header, ...lines].join("\n");

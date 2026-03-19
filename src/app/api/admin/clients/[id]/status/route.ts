@@ -1,51 +1,74 @@
-// src/app/api/admin/clients/[id]/status/route.ts
 export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAdvisorIdFromCookie } from "@/lib/session";
+import { prisma } from "@/prisma";
+import { getAdminAccess, hasBackofficeAccess } from "@/lib/admin-auth";
+import { recordAuditLog, recordLifecycleEvent } from "@/lib/lifecycle";
 
-/** Lazy Prisma import to avoid path issues on Vercel */
-async function getPrisma() {
-  const { PrismaClient } = await import("@prisma/client");
-  return new PrismaClient();
-}
+const ALLOWED = new Set(["in_progress", "verified", "declined"]);
 
-const ALLOWED = new Set([
-  "new",
-  "in_progress",
-  "waiting",
-  "ready",
-  "complete",
-]);
-
-// NOTE: Some project configs expect a looser context type. Use `any`.
 export async function POST(req: NextRequest, context: any) {
   try {
+    const access = await getAdminAccess();
+    if (!access) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const id = context?.params?.id as string | undefined;
     if (!id) {
       return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
 
     const { status } = await req.json().catch(() => ({} as any));
-    const s = String(status || "").toLowerCase();
-    if (!ALLOWED.has(s)) {
+    const nextStatus = String(status || "").toLowerCase();
+    if (!ALLOWED.has(nextStatus)) {
       return NextResponse.json(
         { error: `Invalid status. Allowed: ${[...ALLOWED].join(", ")}` },
         { status: 400 }
       );
     }
 
-    const prisma = await getPrisma();
-    const advisorId = await getAdvisorIdFromCookie();
-
-    // If advisor cookie present, enforce row ownership
-    const where: any = advisorId ? { id, advisorId } : { id };
+    const client = await prisma.client.findFirst({
+      where:
+        hasBackofficeAccess(access)
+          ? { id }
+          : { id, advisorId: access.advisorId || "" },
+      select: { id: true, advisorId: true },
+    });
+    if (!client) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
 
     const updated = await prisma.client.update({
-      where,
-      data: { onboardingStatus: s, updatedAt: new Date() },
-      select: { id: true, onboardingStatus: true },
+      where: { id: client.id },
+      data: {
+        onboardingStatus: nextStatus,
+        reviewedAt: nextStatus === "verified" ? new Date() : null,
+        reviewedBy: access.userEmail || access.advisorEmail || access.label,
+        updatedAt: new Date(),
+      },
+      select: { id: true, onboardingStatus: true, advisorId: true },
     });
+
+    await Promise.allSettled([
+      recordLifecycleEvent({
+        eventType: "client.status.changed",
+        actorRole: access.role,
+        advisorId: updated.advisorId,
+        clientId: updated.id,
+        metadata: { status: nextStatus },
+      }),
+      recordAuditLog({
+        actorRole: access.role,
+        actorLabel: access.userEmail || access.advisorEmail || access.label,
+        actorUserId: access.userId,
+        advisorId: updated.advisorId,
+        action: "client.status.changed",
+        targetType: "client",
+        targetId: updated.id,
+        metadata: { status: nextStatus },
+      }),
+    ]);
 
     return NextResponse.json({ ok: true, client: updated });
   } catch (e: any) {

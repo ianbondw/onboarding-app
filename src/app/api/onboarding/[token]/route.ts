@@ -4,6 +4,12 @@ export const runtime = "nodejs"; // Prisma needs Node runtime on Vercel
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "../../../../prisma"; // keep your existing helper
 import { setSentryTagsServer } from "@/lib/sentry-tags";
+import { encryptToPackedBytes } from "@/lib/crypto";
+import { createComplianceRequest } from "@/lib/compliance";
+import { syncClientToHubSpot } from "@/lib/crm";
+import { issueAdvisorToken } from "@/lib/jwt";
+import { sendNewSubmissionEmail } from "@/lib/email";
+import { recordAuditLog, recordLifecycleEvent } from "@/lib/lifecycle";
 
 /* ------------------------- Rate limiter (in-memory) ------------------------- */
 const RATE_BUCKETS = new Map<string, { count: number; resetAt: number }>();
@@ -37,25 +43,9 @@ function rateLimitOrThrow(req: Request, token: string) {
 }
 /* --------------------------------------------------------------------------- */
 
-// Optional AES-256-GCM encryption for SSN (skips if PII_ENC_KEY is not set or invalid)
-const keyB64 = process.env.PII_ENC_KEY;
-async function encryptPII(value?: string) {
-  if (!value || !keyB64) return { cipher: null as Buffer | null, iv: null as Buffer | null };
-  try {
-    const raw = Buffer.from(keyB64, "base64");
-    if (raw.length !== 32) {
-      console.warn("PII_ENC_KEY must be 32 bytes (base64). Skipping encryption.");
-      return { cipher: null, iv: null };
-    }
-    const key = await crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt"]);
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encoded = new TextEncoder().encode(value);
-    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
-    return { cipher: Buffer.from(ct), iv: Buffer.from(iv) };
-  } catch (e) {
-    console.warn("encryptPII failed; storing nulls:", e);
-    return { cipher: null, iv: null };
-  }
+function encryptPII(value?: string) {
+  if (!value) return null;
+  return encryptToPackedBytes(value);
 }
 
 // Simple rules-based product matcher (per-goal aware)
@@ -274,10 +264,25 @@ export async function POST(req: NextRequest, context: any) {
     // ✅ Look up the advisor behind this intake token
     const intake = await prisma.intakeLink.findUnique({
       where: { token },
-      select: { advisorId: true },
+      select: {
+        advisorId: true,
+        isActive: true,
+        expiresAt: true,
+        advisor: {
+          select: {
+            id: true,
+            name: true,
+            firm: true,
+            email: true,
+          },
+        },
+      },
     });
 
-    if (!intake?.advisorId) {
+    const expired =
+      !!intake?.expiresAt && intake.expiresAt.getTime() <= Date.now();
+
+    if (!intake?.advisorId || !intake.isActive || expired) {
       return json({ error: "Invalid or expired token." }, 404);
     }
     const advisorId = intake.advisorId;
@@ -352,6 +357,17 @@ export async function POST(req: NextRequest, context: any) {
       concernsNarrative,
     } = body ?? {};
 
+    const rawSubmission =
+      isPlainObject(body)
+        ? {
+            ...body,
+            ...(ssn ? { ssn: "[redacted]" } : {}),
+            ...(dateOfBirth ? { dateOfBirth: "[redacted]" } : {}),
+            ...(idDocUrl ? { idDocUrl: "[redacted]" } : {}),
+            ...(proofOfAddressUrl ? { proofOfAddressUrl: "[redacted]" } : {}),
+          }
+        : undefined;
+
     // Minimal but strict: require email (unique key) and some name signal
     if (!email || typeof email !== "string") {
       return json({ error: "Missing required field: email." }, 400);
@@ -366,8 +382,27 @@ export async function POST(req: NextRequest, context: any) {
     const [nf, nl] =
       !firstNameSafe && !lastNameSafe && nameFallback ? splitFullName(nameFallback) : [firstNameSafe, lastNameSafe];
 
-    const enc = await encryptPII(ssn);
+    const ssnEnc = ssn ? encryptPII(String(ssn)) : null;
+    const dobEnc = dateOfBirth ? encryptPII(String(dateOfBirth)) : null;
     const consentAcceptedAt = consentAccepted ? new Date() : null;
+    const complianceRequest =
+      ssn || dateOfBirth || idDocType
+        ? await createComplianceRequest({
+            advisorId,
+            advisorName: intake.advisor?.name ?? null,
+            clientEmail: email,
+            firstName: nf,
+            lastName: nl,
+            dateOfBirth: dateOfBirth ? String(dateOfBirth) : null,
+            ssnLast4: ssn ? String(ssn) : null,
+            idDocType: idDocType ? String(idDocType) : null,
+          })
+        : null;
+    const identityVerificationStatus = ssn || dateOfBirth ? "in_review" : "pending";
+    const documentVerificationStatus =
+      complianceRequest?.providerRef || idDocType ? "in_review" : "pending";
+    const idDocProviderRef = complianceRequest?.providerRef ?? null;
+    const secureReviewUrl = complianceRequest?.reviewUrl ?? null;
 
     // Only include JSON when it's a plain object; otherwise omit the field.
     const goalsDetailInput = isPlainObject(goalsDetail) ? goalsDetail : undefined;
@@ -415,8 +450,10 @@ export async function POST(req: NextRequest, context: any) {
         country,
         citizenship,
 
-        ssnCipher: enc.cipher,
-        ssnIv: enc.iv,
+        ssnCipher: null,
+        ssnIv: null,
+        ssnEnc,
+        dobEnc,
 
         employmentStatus,
         employerName,
@@ -451,11 +488,20 @@ export async function POST(req: NextRequest, context: any) {
         onboardingProgress,
         sectionCompletion: sectionCompletion as any,
 
+        identityVerificationStatus,
+        documentVerificationStatus,
         idDocType,
-        idDocUrl,
-        proofOfAddressUrl,
+        idDocUrl: secureReviewUrl,
+        idDocProviderRef,
+        proofOfAddressUrl: null,
+        reviewNotes: null,
+        reviewedAt: null,
+        reviewedBy: null,
         consentAcceptedAt,
         onboardingStatus: "in_progress",
+        advisorName: intake.advisor?.name ?? null,
+        advisorFirm: intake.advisor?.firm ?? null,
+        rawSubmission,
       },
       update: {
         // keep/set the link used for latest submission
@@ -506,11 +552,24 @@ export async function POST(req: NextRequest, context: any) {
         onboardingProgress,
         sectionCompletion: sectionCompletion as any,
 
+        ssnCipher: null,
+        ssnIv: null,
+        ssnEnc,
+        dobEnc,
+        identityVerificationStatus,
+        documentVerificationStatus,
         idDocType,
-        idDocUrl,
-        proofOfAddressUrl,
+        idDocUrl: secureReviewUrl,
+        idDocProviderRef,
+        proofOfAddressUrl: null,
+        reviewNotes: null,
+        reviewedAt: null,
+        reviewedBy: null,
         consentAcceptedAt,
         onboardingStatus: "in_progress",
+        advisorName: intake.advisor?.name ?? null,
+        advisorFirm: intake.advisor?.firm ?? null,
+        rawSubmission,
         updatedAt: new Date(),
       },
       select: { id: true },
@@ -546,7 +605,80 @@ export async function POST(req: NextRequest, context: any) {
         : []),
     ]);
 
-    return json({ ok: true, token, advisorId, clientId: client.id, recommendations: recs }, 201);
+    await prisma.trialLead.updateMany({
+      where: {
+        advisorId,
+        email,
+        status: "new",
+      },
+      data: { status: "activated" },
+    }).catch(() => null);
+
+    const adminOrigin = process.env.NEXT_PUBLIC_ADMIN_ORIGIN || new URL(req.url).origin;
+    const advisorAdminUrl = `${adminOrigin}/admin/clients?admin_token=${issueAdvisorToken(advisorId)}`;
+
+    await Promise.allSettled([
+      recordLifecycleEvent({
+        eventType: "client.onboarding.submitted",
+        actorRole: "client",
+        advisorId,
+        clientId: client.id,
+        metadata: {
+          onboardingProgress,
+          openQuestions: Array.isArray(constraints) ? constraints.length : 0,
+        },
+      }),
+      recordAuditLog({
+        actorRole: "client",
+        actorLabel: email,
+        advisorId,
+        action: "client.onboarding.submitted",
+        targetType: "client",
+        targetId: client.id,
+        metadata: {
+          onboardingProgress,
+          sourceOfFunds,
+        },
+      }),
+      complianceRequest?.providerRef
+        ? recordLifecycleEvent({
+            eventType: "client.compliance.requested",
+            actorRole: "system",
+            advisorId,
+            clientId: client.id,
+            metadata: {
+              providerRef: complianceRequest.providerRef,
+              reviewUrl: complianceRequest.reviewUrl,
+            },
+          })
+        : Promise.resolve(),
+      syncClientToHubSpot({
+        firstName: nf,
+        lastName: nl,
+        email,
+        phone: typeof phone === "string" ? phone : null,
+        company: intake.advisor?.firm ?? null,
+      }),
+      intake.advisor?.email
+        ? sendNewSubmissionEmail({
+            to: intake.advisor.email,
+            advisorName: intake.advisor.name || undefined,
+            client: { firstName: nf, lastName: nl, email },
+            submissionId: client.id,
+            adminUrl: advisorAdminUrl,
+          })
+        : Promise.resolve(),
+    ]);
+
+    return json(
+      {
+        ok: true,
+        clientId: client.id,
+        nextUrl: `/onboarding/${encodeURIComponent(token)}/done`,
+        recommendations: recs,
+      },
+      201
+    );
   } catch (e: any) {
     const status = e?.status || 500;
     const extraHeaders = e?.headers || {};

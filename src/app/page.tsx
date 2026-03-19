@@ -19,7 +19,7 @@ export default function Home() {
         </nav>
         <div className="flex items-center gap-3">
           <Link href="/admin/clients" className="rounded-xl px-4 py-2 text-sm font-medium border">Admin</Link>
-          <Link href="/onboarding" className="rounded-xl px-4 py-2 text-sm font-medium bg-gray-900 text-white">Try Demo</Link>
+          <Link href="/pilot" className="rounded-xl px-4 py-2 text-sm font-medium bg-gray-900 text-white">Try Demo</Link>
         </div>
       </header>
 
@@ -35,16 +35,16 @@ export default function Home() {
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
-              href="/onboarding"
+              href="/pilot"
               className="rounded-xl px-5 py-3 text-sm font-medium bg-gray-900 text-white"
             >
-              Start Interactive Demo
+              Start Guided Trial
             </Link>
             <Link
-              href="/onboarding"
+              href="/pilot"
               className="rounded-xl px-5 py-3 text-sm font-medium border"
             >
-              Generate Demo Token
+              Get Trial Links
             </Link>
             <a
               href="#book"
@@ -131,7 +131,7 @@ export default function Home() {
             <p className="mt-2 text-sm text-gray-600">
               Up to <strong>25</strong> completed intakes per month, then <strong>$10</strong> per additional client.
             </p>
-            <Link href="/onboarding" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-medium bg-gray-900 text-white">
+            <Link href="/pilot" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-medium bg-gray-900 text-white">
               Start demo
             </Link>
           </div>
@@ -202,8 +202,8 @@ export default function Home() {
             Give us 30 minutes. We’ll set up advisor links and a clean demo using your data.
           </p>
           <div className="mt-4 flex items-center justify-center gap-3">
-            <Link href="/onboarding" className="rounded-xl px-5 py-3 text-sm font-medium bg-gray-900 text-white">
-              Run Demo
+            <Link href="/pilot" className="rounded-xl px-5 py-3 text-sm font-medium bg-gray-900 text-white">
+              Create Trial
             </Link>
             <a href="mailto:demo@advisoronboarding.app" className="rounded-xl px-5 py-3 text-sm font-medium border">
               Email Us

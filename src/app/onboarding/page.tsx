@@ -21,16 +21,12 @@ export default function OnboardingStartPage() {
     router.push(`/onboarding/${token}${qs.toString() ? `?${qs.toString()}` : ""}`);
   }
 
-  // Optional: quick demo token via your /api/advisors
+  // Optional: quick demo token for internal testing.
   async function makeDemo() {
     try {
       setErr(null);
       setBusy(true);
-      const res = await fetch("/api/advisors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Demo Advisor" }),
-      });
+      const res = await fetch("/api/demo-token", { method: "POST", cache: "no-store" });
       const data = await res.json();
       if (!res.ok || !data?.token) throw new Error(data?.error || "Could not create demo token");
       setToken(data.token);

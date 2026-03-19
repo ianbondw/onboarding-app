@@ -16,7 +16,7 @@ const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || "";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const adminHref = `${ADMIN_ORIGIN}/admin/clients`;
-  const demoHref = APP_ORIGIN ? `${APP_ORIGIN}/onboarding` : "/onboarding";
+  const demoHref = APP_ORIGIN ? `${APP_ORIGIN}/pilot` : "/pilot";
 
   return (
     <html lang="en">

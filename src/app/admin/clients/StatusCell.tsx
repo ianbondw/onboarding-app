@@ -4,11 +4,9 @@
 import { useState, useTransition } from "react";
 
 const OPTIONS = [
-  ["new", "New"],
   ["in_progress", "In Progress"],
-  ["waiting", "Waiting"],
-  ["ready", "Ready"],
-  ["complete", "Complete"],
+  ["verified", "Verified"],
+  ["declined", "Declined"],
 ] as const;
 
 export default function StatusCell({
@@ -18,7 +16,7 @@ export default function StatusCell({
   id: string;
   initial: string | null;
 }) {
-  const [value, setValue] = useState<string>(initial || "new");
+  const [value, setValue] = useState<string>(initial || "in_progress");
   const [isPending, startTransition] = useTransition();
   const [err, setErr] = useState<string>("");
 

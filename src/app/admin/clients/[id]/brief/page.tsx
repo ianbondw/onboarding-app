@@ -1,8 +1,9 @@
 // src/app/admin/clients/[id]/brief/page.tsx
 import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
+import ComplianceReviewCard from "./ComplianceReviewCard";
 import { prisma } from "@/prisma";
-import { getAdvisorIdFromCookie } from "@/lib/session";
+import { getAdminAccess, hasBackofficeAccess } from "@/lib/admin-auth";
 import GoalGrid from "@/components/GoalGrid";
 
 export const dynamic = "force-dynamic";
@@ -14,12 +15,15 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
   const clientId = rawId?.trim();
   if (!clientId) notFound();
 
-  const advisorId = await getAdvisorIdFromCookie();
-  if (!advisorId) notFound();
+  const access = await getAdminAccess();
+  if (!access) notFound();
 
   const [client, matches, flags] = await prisma.$transaction([
     prisma.client.findFirst({
-      where: { id: clientId, advisorId },
+      where:
+        hasBackofficeAccess(access)
+          ? { id: clientId }
+          : { id: clientId, advisorId: access.advisorId || "" },
       select: {
         id: true,
         advisorId: true,
@@ -35,6 +39,13 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
         postalCode: true,
         country: true,
         citizenship: true,
+        identityVerificationStatus: true,
+        documentVerificationStatus: true,
+        idDocType: true,
+        idDocProviderRef: true,
+        reviewNotes: true,
+        reviewedAt: true,
+        reviewedBy: true,
         employmentStatus: true,
         employerName: true,
         annualIncomeBand: true,
@@ -69,7 +80,10 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
       orderBy: { productCode: "asc" },
     }),
     prisma.clientFieldFlag.findMany({
-      where: { clientId, advisorId, status: "open" },
+      where:
+        hasBackofficeAccess(access)
+          ? { clientId, status: "open" }
+          : { clientId, advisorId: access.advisorId || "", status: "open" },
       select: { id: true, fieldKey: true, note: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     }),
@@ -174,6 +188,17 @@ export default async function ClientBriefPage({ params }: { params: Params }) {
           <span>Updated: {fmt(client.updatedAt)}</span>
         </div>
       </section>
+
+      <ComplianceReviewCard
+        clientId={client.id}
+        identityVerificationStatus={client.identityVerificationStatus || "pending"}
+        documentVerificationStatus={client.documentVerificationStatus || "pending"}
+        idDocType={client.idDocType || null}
+        idDocProviderRef={client.idDocProviderRef || null}
+        reviewNotes={client.reviewNotes || null}
+        reviewedAt={client.reviewedAt ? client.reviewedAt.toISOString() : null}
+        reviewedBy={client.reviewedBy || null}
+      />
 
       {/* Plan at a glance: visual grid of goals */}
       <section className="rounded-2xl border p-5 space-y-2">

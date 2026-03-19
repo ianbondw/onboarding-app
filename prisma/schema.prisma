@@ -78,9 +78,15 @@ model Client {
   hasRealEstate      Boolean   @default(false)
 
   // KYC docs (store URLs/paths or provider refs)
+  identityVerificationStatus String @default("pending") // pending | in_review | verified | failed
+  documentVerificationStatus String @default("pending") // pending | in_review | verified | failed
   idDocType          String?   // driver_license | passport | other
   idDocUrl           String?
+  idDocProviderRef   String?
   proofOfAddressUrl  String?
+  reviewNotes        String?
+  reviewedAt         DateTime?
+  reviewedBy         String?
 
   // Consent & status
   consentAcceptedAt  DateTime?
@@ -99,6 +105,7 @@ model Client {
   rawSubmission      Json?
 
   matches            ProductMatch[]
+  lifecycleEvents    LifecycleEvent[]
 
   // 🔁 Opposite side of ClientFieldFlag.client
   clientFieldFlags   ClientFieldFlag[]
@@ -126,9 +133,15 @@ model Advisor {
   updatedAt   DateTime     @updatedAt
   slug        String       @unique
   name        String
+  email       String?
   firm        String?
   clients     Client[]
   intakeLinks IntakeLink[]
+  users       PortalUser[]
+  sessions    PortalSession[]
+  trialLeads  TrialLead[]
+  lifecycleEvents LifecycleEvent[]
+  auditLogs   AuditLog[]
 }
 
 model IntakeLink {
@@ -142,6 +155,98 @@ model IntakeLink {
 
   expiresAt DateTime?
   isActive  Boolean  @default(true)
+}
+
+model PortalUser {
+  id           String          @id @default(cuid())
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  email        String          @unique
+  passwordHash String?
+  role         String          // owner | advisor | ops
+  isActive     Boolean         @default(true)
+  lastLoginAt  DateTime?
+  advisorId    String?
+  advisor      Advisor?        @relation(fields: [advisorId], references: [id], onDelete: Cascade)
+  sessions     PortalSession[]
+  auditLogs    AuditLog[]
+
+  @@index([advisorId, role])
+}
+
+model PortalSession {
+  id         String      @id @default(cuid())
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  tokenHash  String      @unique
+  role       String      // owner | advisor
+  label      String?
+  expiresAt  DateTime
+  lastSeenAt DateTime    @default(now())
+  userId     String?
+  user       PortalUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  advisorId  String?
+  advisor    Advisor?    @relation(fields: [advisorId], references: [id], onDelete: Cascade)
+
+  @@index([advisorId, role])
+  @@index([userId, expiresAt])
+}
+
+model TrialLead {
+  id             String           @id @default(cuid())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  name           String
+  email          String
+  firm           String?
+  source         String           @default("website")
+  status         String           @default("new") // new | activated | archived
+  onboardingUrl  String?
+  adminUrl       String?
+  metadata       Json?
+  advisorId      String?
+  advisor        Advisor?         @relation(fields: [advisorId], references: [id], onDelete: SetNull)
+  lifecycleEvents LifecycleEvent[]
+
+  @@index([email, createdAt])
+  @@index([advisorId, status])
+}
+
+model LifecycleEvent {
+  id         String     @id @default(cuid())
+  createdAt  DateTime   @default(now())
+  eventType  String
+  actorRole  String?
+  metadata   Json?
+  advisorId  String?
+  advisor    Advisor?   @relation(fields: [advisorId], references: [id], onDelete: SetNull)
+  clientId   String?
+  client     Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  leadId     String?
+  lead       TrialLead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([eventType, createdAt])
+  @@index([advisorId, createdAt])
+  @@index([clientId, createdAt])
+  @@index([leadId, createdAt])
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  createdAt   DateTime    @default(now())
+  actorRole   String
+  actorLabel  String?
+  action      String
+  targetType  String
+  targetId    String?
+  metadata    Json?
+  actorUserId String?
+  actorUser   PortalUser? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  advisorId   String?
+  advisor     Advisor?    @relation(fields: [advisorId], references: [id], onDelete: SetNull)
+
+  @@index([advisorId, createdAt])
+  @@index([targetType, targetId])
 }
 
 model ClientFieldFlag {

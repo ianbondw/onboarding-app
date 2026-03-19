@@ -1,5 +1,9 @@
 export function GET() {
-  return new Response("User-agent: *\nDisallow: /\n", {
-    headers: { "Content-Type": "text/plain" },
-  });
+  const site = "https://marengofinance.com";
+  return new Response(
+    `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api\nSitemap: ${site}/sitemap.xml\n`,
+    {
+      headers: { "Content-Type": "text/plain" },
+    }
+  );
 }

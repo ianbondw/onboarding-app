@@ -1,10 +1,10 @@
 // src/app/admin/clients/page.tsx
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { prisma } from "../../../prisma";
-import { getAdvisorIdFromCookie } from "../../../lib/session";
 import SentryInit from "./SentryInit";
 import QuickActions from "@/components/QuickActions";
+import StatusCell from "./StatusCell";
+import { canManagePortalUsers, getAdminAccess } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,19 +25,17 @@ function computeMissing(r: any): string {
 }
 
 export default async function AdminClients(props: any) {
-  const jar = await cookies();
+  const access = await getAdminAccess();
+  const ownerMode = access?.role === "owner";
+  const advisorId = access?.role === "advisor" ? access.advisorId || undefined : undefined;
 
-  const ownerCookie = Boolean(jar.get("admin_token")?.value);
-  const advisorId = (await getAdvisorIdFromCookie()) || undefined;
-  const ownerMode = !advisorId && ownerCookie;
-
-  if (!advisorId && !ownerMode) {
+  if (!access) {
     return (
       <main className="mx-auto max-w-3xl p-6 space-y-4">
-        <h1 className="text-2xl font-semibold text-red-700">Unauthorized: missing or invalid admin token.</h1>
+        <h1 className="text-2xl font-semibold text-red-700">Unauthorized: missing or invalid portal session.</h1>
         <p className="text-sm text-gray-600">
-          Sign in at <code>/admin/login</code> (owner), or use your personalized link containing{" "}
-          <code>?admin_token=...</code> (advisor).
+          Sign in at <code>/admin/login</code>, or use your advisor access link with{" "}
+          <code>?admin_token=...</code>.
         </p>
       </main>
     );
@@ -75,6 +73,15 @@ export default async function AdminClients(props: any) {
   let riskMix: Record<string, number> = {};
   let goalMix: Record<string, number> = {};
   let analyticsError: string | null = null;
+  let leadSummary = { total: 0, activated: 0 };
+  let recentLeads: Array<{
+    id: string;
+    name: string;
+    email: string;
+    firm: string | null;
+    status: string;
+    createdAt: Date;
+  }> = [];
 
   try {
     const baseWhere: any = advisorId ? { advisorId } : {};
@@ -92,6 +99,25 @@ export default async function AdminClients(props: any) {
       riskMix[risk] = (riskMix[risk] ?? 0) + 1;
       const goals = Array.isArray(r.primaryGoals) ? r.primaryGoals : [];
       for (const g of goals) goalMix[g] = (goalMix[g] ?? 0) + 1;
+    }
+
+    if (ownerMode) {
+      leadSummary.total = await prisma.trialLead.count();
+      leadSummary.activated = await prisma.trialLead.count({
+        where: { status: "activated" },
+      });
+      recentLeads = await prisma.trialLead.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 6,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          firm: true,
+          status: true,
+          createdAt: true,
+        },
+      });
     }
   } catch (e: any) {
     console.error("ADMIN/CLIENTS analytics error:", e);
@@ -117,6 +143,8 @@ export default async function AdminClients(props: any) {
     advisorId: true,
     onboardingStatus: true,
     onboardingProgress: true,
+    identityVerificationStatus: true,
+    documentVerificationStatus: true,
     intakeToken: true,
     concernsNarrative: true, // next-convo topic
     clientFieldFlags: {
@@ -183,7 +211,6 @@ export default async function AdminClients(props: any) {
     { key: "verified", label: "Verified" },
     { key: "declined", label: "Declined" },
   ];
-  const friendlyStatus = (s?: string) => (s || "in_progress").replace(/_/g, " ");
 
   return (
     <>
@@ -207,9 +234,16 @@ export default async function AdminClients(props: any) {
             <span className="text-sm text-gray-500">({rows.length} of {total})</span>
           </div>
           <div className="ml-auto">
-            <a href="/api/clients/export" className="btn-secondary" download>
-              Export CSV
-            </a>
+            <div className="flex items-center gap-2">
+              {canManagePortalUsers(access) ? (
+                <Link href="/admin/users" className="btn-secondary">
+                  Portal Users
+                </Link>
+              ) : null}
+              <a href="/admin/clients.csv" className="btn-secondary" download>
+                Export CSV
+              </a>
+            </div>
           </div>
         </div>
 
@@ -229,6 +263,54 @@ export default async function AdminClients(props: any) {
             );
           })}
         </div>
+
+        {ownerMode && (
+          <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
+            <Card title="Trial Funnel">
+              <div className="space-y-3 text-sm">
+                <div>
+                  <div className="text-slate-500">Total trial requests</div>
+                  <div className="text-2xl font-semibold text-slate-900">{leadSummary.total}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Activated trials</div>
+                  <div className="text-2xl font-semibold text-slate-900">{leadSummary.activated}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Activation rate</div>
+                  <div className="text-2xl font-semibold text-slate-900">
+                    {leadSummary.total > 0
+                      ? `${Math.round((leadSummary.activated / leadSummary.total) * 100)}%`
+                      : "0%"}
+                  </div>
+                </div>
+              </div>
+            </Card>
+            <Card title="Recent Trial Requests">
+              <div className="space-y-3 text-sm">
+                {recentLeads.length === 0 ? (
+                  <p className="text-slate-600">No trial requests yet.</p>
+                ) : (
+                  recentLeads.map((lead) => (
+                    <div key={lead.id} className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 last:border-b-0 last:pb-0">
+                      <div>
+                        <div className="font-medium text-slate-900">{lead.name}</div>
+                        <div className="text-slate-500">
+                          {lead.email}
+                          {lead.firm ? ` · ${lead.firm}` : ""}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs uppercase tracking-wide text-slate-500">{lead.status}</div>
+                        <div className="text-xs text-slate-500">{new Date(lead.createdAt).toLocaleString()}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Card>
+          </section>
+        )}
 
         {!analyticsError && (
           <section className="grid gap-4 md:grid-cols-2">
@@ -311,9 +393,7 @@ export default async function AdminClients(props: any) {
                             ⚑ {openFlagCount}
                           </span>
                         )}
-                        <span className="text-xs rounded-md border px-2 py-0.5">
-                          {friendlyStatus(r.onboardingStatus)}
-                        </span>
+                        <StatusCell id={r.id} initial={r.onboardingStatus} />
                         {missing && (
                           <span className="hidden md:inline text-xs text-gray-500">• missing: {missing}</span>
                         )}
@@ -341,7 +421,7 @@ export default async function AdminClients(props: any) {
                       {inviteUrl ? (
                         <QuickActions
                           inviteUrl={inviteUrl}
-                          resendHref={`/admin/clients/${r.id}/resend-invite`}
+                          resendHref={`/api/admin/clients/${r.id}/resend-invite`}
                           flagsCount={openFlagCount}
                         />
                       ) : (

@@ -180,9 +180,9 @@ export default function Wizard({ token }: { token: string }) {
   const [goalsDetail, setGoalsDetail] = useState<Record<string, GoalDetail>>({});
 
   // Identity (demo)
+  const [dateOfBirth, setDateOfBirth]     = useState("");
   const [ssn, setSSN]                     = useState("");
   const [idDocType, setIdDocType]         = useState<string>("");
-  const [idDocUrl, setIdDocUrl]           = useState("");
   const [consentAccepted, setConsent]     = useState(false);
 
   // Topics
@@ -235,6 +235,36 @@ export default function Wizard({ token }: { token: string }) {
 
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  async function trackEvent(eventType: string, extra?: Record<string, unknown>) {
+    if (!token) return;
+    try {
+      await fetch(`/api/onboarding/${encodeURIComponent(token)}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+        body: JSON.stringify({
+          eventType,
+          step,
+          email,
+          ...(extra || {}),
+        }),
+      });
+    } catch {
+      // analytics must not block onboarding
+    }
+  }
+
+  useEffect(() => {
+    void trackEvent("opened");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    void trackEvent("step_viewed");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   function toggleMulti(list: string[], value: string, setter: (v: string[]) => void) {
     if (list.includes(value)) setter(list.filter(v => v !== value));
@@ -306,9 +336,9 @@ export default function Wizard({ token }: { token: string }) {
         goalsDetail,
 
         // identity (demo)
+        dateOfBirth: dateOfBirth || undefined,
         ssn,
         idDocType: normalize(idDocType) || null,
-        idDocUrl: idDocUrl || null,
 
         // narrative (topics + notes)
         concernsNarrative: concernsOut,
@@ -324,13 +354,13 @@ export default function Wizard({ token }: { token: string }) {
         body: JSON.stringify(body),
       });
 
+      const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
         throw new Error(j?.error || `Submission failed (${res.status}).`);
       }
 
-      alert("Submitted! Thanks.");
-      window.location.href = "/";
+      await trackEvent("submitted");
+      window.location.href = j?.nextUrl || `/onboarding/${encodeURIComponent(token)}/done`;
     } catch (e: any) {
       setErr(e?.message || String(e));
     } finally {
@@ -527,10 +557,14 @@ export default function Wizard({ token }: { token: string }) {
           <p className="mb-3 text-sm text-gray-600">
             For demo, SSN <strong>last-4</strong> is fine. Document field is optional. (In production, we’ll use a KYC provider and never store files directly.)
           </p>
+          <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+            Secure verification is requested after submit. Do not paste document file URLs into the
+            onboarding form.
+          </div>
           <Grid>
+            <Input label="Date of birth" value={dateOfBirth} onChange={setDateOfBirth} type="date" />
             <Input label="SSN (last-4)" value={ssn} onChange={setSSN} maxLength={4} />
             <Select label="ID document type (optional)" value={idDocType} onChange={setIdDocType} options={ID_DOC_TYPES} />
-            <Input label="ID document URL (optional)" value={idDocUrl} onChange={setIdDocUrl} />
           </Grid>
 
           <label className="mt-4 flex items-center gap-2 text-sm">

@@ -1,8 +1,7 @@
 // src/middleware.ts
 import { NextResponse, NextRequest } from "next/server";
 
-const OWNER_COOKIE = "admin_token";      // set by /api/admin/login (owner mode)
-const ADVISOR_COOKIE = "advisor_admin";  // advisor JWT cookie used by dashboard
+const PORTAL_SESSION_COOKIE = "portal_session";
 
 export function middleware(req: NextRequest) {
   const { nextUrl } = req;
@@ -12,24 +11,16 @@ export function middleware(req: NextRequest) {
   const isAdminApi  = pathname.startsWith("/api/admin");
   if (!isAdminPage && !isAdminApi) return NextResponse.next();
 
-  // --- NEW: accept ?admin_token=... on any admin route ---
-  // If present, set advisor cookie and:
-  //  - for pages: redirect to same URL without the query param
-  //  - for APIs: continue (no redirect)
+  // Route magic-link style advisor access through the accept endpoint, which
+  // verifies the token before issuing a real portal session cookie.
   const adminToken = nextUrl.searchParams.get("admin_token");
-  if (adminToken) {
+  if (adminToken && isAdminPage && !pathname.startsWith("/admin/login")) {
     const cleaned = new URL(nextUrl.toString());
     cleaned.searchParams.delete("admin_token");
-
-    const res = isAdminApi ? NextResponse.next() : NextResponse.redirect(cleaned);
-    res.cookies.set(ADVISOR_COOKIE, adminToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: true,
-      path: "/",                // all admin pages
-      maxAge: 60 * 60 * 24 * 30 // 30 days
-    });
-    return res;
+    const acceptUrl = new URL("/api/admin/accept", nextUrl.origin);
+    acceptUrl.searchParams.set("admin_token", adminToken);
+    acceptUrl.searchParams.set("next", cleaned.pathname + cleaned.search);
+    return NextResponse.redirect(acceptUrl);
   }
 
   // Public admin endpoints (no auth required)
@@ -42,10 +33,10 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Require an owner or advisor cookie for all other admin pages/APIs
-  const hasOwner   = !!req.cookies.get(OWNER_COOKIE)?.value;
-  const hasAdvisor = !!req.cookies.get(ADVISOR_COOKIE)?.value;
-  if (hasOwner || hasAdvisor) return NextResponse.next();
+  // Require a real portal session for all other admin pages/APIs. Detailed
+  // session validation happens inside the page/API handlers themselves.
+  const hasPortalSession = !!req.cookies.get(PORTAL_SESSION_COOKIE)?.value;
+  if (hasPortalSession) return NextResponse.next();
 
   // If it's an API under /api/admin, return JSON 401
   if (isAdminApi) {
