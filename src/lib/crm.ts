@@ -96,6 +96,7 @@ export async function syncTrialLeadToHubSpot(input: {
   name?: string | null;
   email?: string | null;
   firm?: string | null;
+  website?: string | null;
 }) {
   if (!input.email) return null;
   const name = splitName(input.name);
@@ -104,6 +105,7 @@ export async function syncTrialLeadToHubSpot(input: {
     firstName: name.firstName,
     lastName: name.lastName,
     company: input.firm,
+    website: input.website,
     lifecycleStage: "opportunity",
   });
 }

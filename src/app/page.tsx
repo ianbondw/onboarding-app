@@ -1,218 +1,348 @@
-// src/app/page.tsx
-// Marketing homepage for Client Onboarding (Next.js App Router)
-
 import Link from "next/link";
+import { faqItems, pricingPlans, revenueOutcomes, rolloutSteps } from "@/lib/marketing";
+
+function buildContactHref() {
+  const email = (process.env.CONTACT_TO || "").trim();
+  if (!email) return "/contact";
+  return `mailto:${email}?subject=${encodeURIComponent("Marengo rollout inquiry")}`;
+}
 
 export default function Home() {
+  const contactHref = buildContactHref();
+
   return (
-    <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      {/* NAV */}
-      <header className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
-      <div className="flex items-center">
-        <span className="text-sm font-medium">Client Onboarding</span>
-      </div>
-        <nav className="hidden md:flex items-center gap-6 text-sm text-gray-600">
-          <a href="#how" className="hover:text-gray-900">How it works</a>
-          <a href="#security" className="hover:text-gray-900">Security</a>
-          <a href="#pricing" className="hover:text-gray-900">Pricing</a>
-          <a href="#faq" className="hover:text-gray-900">FAQ</a>
-        </nav>
-        <div className="flex items-center gap-3">
-          <Link href="/admin/clients" className="rounded-xl px-4 py-2 text-sm font-medium border">Admin</Link>
-          <Link href="/pilot" className="rounded-xl px-4 py-2 text-sm font-medium bg-gray-900 text-white">Try Demo</Link>
-        </div>
-      </header>
+    <main className="space-y-20 pb-10">
+      <section className="grid gap-8 pb-4 pt-4 lg:grid-cols-[1.15fr,0.85fr] lg:items-start">
+        <div className="space-y-6">
+          <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-amber-900">
+            Launch white-labeled onboarding fast
+          </div>
 
-      {/* HERO */}
-      <section className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12 md:py-20 grid md:grid-cols-2 gap-10 items-center">
-        <div>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight">
-            Client onboarding that advisors don’t hate.
-          </h1>
-          <p className="mt-4 text-gray-600 text-lg">
-            A clean, compliant intake that captures KYC, risk, and documents in minutes — with per-advisor analytics built in.
-            Eliminate back-and-forth, boost conversions, and get clients funded faster.
+          <div className="space-y-4">
+            <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 md:text-6xl">
+              Launch a cleaner client onboarding flow for your RIA in days, not quarters.
+            </h1>
+            <p className="max-w-2xl text-lg leading-8 text-slate-600">
+              Marengo turns email chains, PDF packets, and manual review into a guided
+              trial workspace with advisor logins, client intake, review states, and a
+              clear path to paid rollout.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Link href="/pilot?plan=guided-launch" className="btn-primary px-5 py-3">
+              Start guided trial
+            </Link>
+            <Link href="/pricing" className="btn-secondary px-5 py-3">
+              See pricing
+            </Link>
+            <a href={contactHref} className="btn-plain px-4 py-3">
+              Talk to sales
+            </a>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border bg-white/85 p-4 shadow-sm">
+              <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+                Trial-ready
+              </div>
+              <div className="mt-2 text-sm text-slate-700">
+                Dedicated workspace, onboarding link, and advisor login instead of a fake demo.
+              </div>
+            </div>
+            <div className="rounded-2xl border bg-white/85 p-4 shadow-sm">
+              <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+                Review workflow
+              </div>
+              <div className="mt-2 text-sm text-slate-700">
+                Admin review, compliance states, and advisor-scoped access for live ops.
+              </div>
+            </div>
+            <div className="rounded-2xl border bg-white/85 p-4 shadow-sm">
+              <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+                Revenue posture
+              </div>
+              <div className="mt-2 text-sm text-slate-700">
+                Pricing, rollout packages, and a clear story you can sell to firms now.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-[28px] border border-slate-200 bg-white/90 p-6 shadow-sm">
+            <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+              What buyers get in week one
+            </div>
+            <div className="mt-4 space-y-3">
+              {[
+                "A guided trial workspace with real onboarding and review flow",
+                "Advisor login and dashboard access",
+                "Lead capture and trial request visibility",
+                "Email delivery for internal follow-up and buyer access",
+                "A rollout path for branding, ops, and integration work",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-2xl border border-slate-200/80 bg-slate-50 px-4 py-3 text-sm text-slate-700"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[28px] bg-slate-950 p-6 text-white shadow-sm">
+            <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-300">
+              Illustrative ops ROI
+            </div>
+            <div className="mt-3 text-3xl font-semibold">$12,960/year</div>
+            <p className="mt-3 text-sm leading-7 text-slate-300">
+              Example only: 12 new households per month, 2 hours of ops cleanup per
+              household, and $45/hour internal cost. That excludes any lift from faster
+              response and better advisor follow-up.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-[32px] border border-slate-200/80 bg-white/85 p-8 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+              What firms buy
+            </div>
+            <h2 className="mt-2 text-3xl font-semibold text-slate-950">
+              This is not just intake software. It is a faster path from interest to funded client.
+            </h2>
+          </div>
+          <Link href="/pricing" className="btn-secondary w-fit">
+            Compare rollout packages
+          </Link>
+        </div>
+
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          {revenueOutcomes.map((item) => (
+            <div key={item.title} className="rounded-3xl border bg-slate-50 p-6">
+              <h3 className="text-lg font-medium text-slate-950">{item.title}</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{item.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="how" className="space-y-6">
+        <div className="space-y-3">
+          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+            How it works
+          </div>
+          <h2 className="text-3xl font-semibold text-slate-950">
+            Start with a guided trial, then convert it into a paid rollout.
+          </h2>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {rolloutSteps.map((step, index) => (
+            <div key={step.title} className="rounded-3xl border bg-white/85 p-6 shadow-sm">
+              <div className="text-sm font-semibold text-amber-700">0{index + 1}</div>
+              <h3 className="mt-3 text-lg font-medium text-slate-950">{step.title}</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{step.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="pricing" className="space-y-6">
+        <div className="space-y-3">
+          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+            Pricing
+          </div>
+          <h2 className="text-3xl font-semibold text-slate-950">
+            Price the rollout, not just the trial.
+          </h2>
+          <p className="max-w-3xl text-sm leading-7 text-slate-600">
+            Guided trials are the fastest way to prove the flow. Paid plans begin when
+            you want a branded workspace, implementation help, and an operational handoff
+            your team can actually run.
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              href="/pilot"
-              className="rounded-xl px-5 py-3 text-sm font-medium bg-gray-900 text-white"
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          {pricingPlans.map((plan) => (
+            <div
+              key={plan.slug}
+              className={`rounded-[30px] border p-6 shadow-sm ${
+                plan.featured
+                  ? "border-slate-950 bg-slate-950 text-white"
+                  : "border-slate-200 bg-white/90 text-slate-900"
+              }`}
             >
-              Start Guided Trial
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div
+                    className={`text-xs font-medium uppercase tracking-[0.18em] ${
+                      plan.featured ? "text-amber-300" : "text-slate-500"
+                    }`}
+                  >
+                    {plan.name}
+                  </div>
+                  <div className="mt-3 text-2xl font-semibold">
+                    {plan.setupFee}
+                  </div>
+                  <div
+                    className={`mt-1 text-sm ${
+                      plan.featured ? "text-slate-300" : "text-slate-500"
+                    }`}
+                  >
+                    {plan.monthlyPrice}
+                  </div>
+                </div>
+                {plan.featured ? (
+                  <span className="rounded-full bg-amber-300 px-3 py-1 text-xs font-medium text-slate-950">
+                    Best first sale
+                  </span>
+                ) : null}
+              </div>
+
+              <p
+                className={`mt-4 text-sm leading-7 ${
+                  plan.featured ? "text-slate-200" : "text-slate-600"
+                }`}
+              >
+                {plan.bestFor}
+              </p>
+              <p
+                className={`mt-3 text-sm leading-7 ${
+                  plan.featured ? "text-slate-300" : "text-slate-500"
+                }`}
+              >
+                {plan.summary}
+              </p>
+
+              <div className="mt-5 space-y-3">
+                {plan.highlights.map((highlight) => (
+                  <div
+                    key={highlight}
+                    className={`rounded-2xl border px-4 py-3 text-sm ${
+                      plan.featured
+                        ? "border-slate-800 bg-slate-900 text-slate-100"
+                        : "border-slate-200 bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    {highlight}
+                  </div>
+                ))}
+              </div>
+
+              <Link
+                href={plan.ctaHref}
+                className={`mt-6 inline-flex rounded-lg px-4 py-3 text-sm font-medium ${
+                  plan.featured
+                    ? "bg-white text-slate-950"
+                    : "border border-slate-300 bg-white text-slate-900"
+                }`}
+              >
+                {plan.ctaLabel}
+              </Link>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-[32px] border border-slate-200/80 bg-white/90 p-8 shadow-sm">
+        <div className="grid gap-8 lg:grid-cols-[0.9fr,1.1fr]">
+          <div className="space-y-3">
+            <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+              Manual process vs Marengo
+            </div>
+            <h2 className="text-3xl font-semibold text-slate-950">
+              Replace the parts that slow down revenue.
+            </h2>
+            <p className="text-sm leading-7 text-slate-600">
+              The point is not prettier paperwork. It is fewer delays between first
+              interest, completed intake, advisor review, and operational follow-up.
+            </p>
+          </div>
+
+          <div className="grid gap-3">
+            {[
+              {
+                left: "PDFs, email attachments, and missing fields",
+                right: "Guided onboarding with flags and structured review",
+              },
+              {
+                left: "Shared demos that do not convert into a real workspace",
+                right: "Dedicated trial workspaces tied to a live advisor environment",
+              },
+              {
+                left: "Manual follow-up with weak context",
+                right: "Advisor dashboard, compliance states, and exportable data",
+              },
+              {
+                left: "No clean transition into a paid implementation",
+                right: "Pricing, rollout packages, and a clear operational handoff",
+              },
+            ].map((row) => (
+              <div
+                key={row.left}
+                className="grid gap-3 rounded-3xl border bg-slate-50 p-4 md:grid-cols-[1fr,1fr]"
+              >
+                <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-500">
+                  {row.left}
+                </div>
+                <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+                  {row.right}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" className="space-y-6">
+        <div className="space-y-3">
+          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+            FAQ
+          </div>
+          <h2 className="text-3xl font-semibold text-slate-950">
+            Questions buyers usually ask before rollout
+          </h2>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {faqItems.map((item) => (
+            <div key={item.question} className="rounded-3xl border bg-white/90 p-6 shadow-sm">
+              <h3 className="text-lg font-medium text-slate-950">{item.question}</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{item.answer}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-[34px] bg-slate-950 px-8 py-10 text-white shadow-sm">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="text-xs font-medium uppercase tracking-[0.18em] text-amber-300">
+              Next step
+            </div>
+            <h2 className="mt-3 text-3xl font-semibold">
+              Create a guided trial, see the flow live, and price the rollout from something real.
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-slate-300">
+              If the trial works, move straight into Guided Launch or Growth Team. If you
+              need a deeper white-label rollout, use the contact path and we will scope it.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Link href="/pilot?plan=guided-launch" className="inline-flex rounded-lg bg-white px-5 py-3 text-sm font-medium text-slate-950">
+              Create guided trial
             </Link>
-            <Link
-              href="/pilot"
-              className="rounded-xl px-5 py-3 text-sm font-medium border"
-            >
-              Get Trial Links
-            </Link>
-            <a
-              href="#book"
-              className="rounded-xl px-5 py-3 text-sm font-medium border"
-            >
-              Request Pilot
-            </a>
-          </div>
-          <div className="mt-4 text-xs text-gray-500">
-            No credit card • SOC2-friendly architecture • Works on desktop & mobile
-          </div>
-        </div>
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <div className="text-sm text-gray-500 mb-3">What you’ll see</div>
-          <ul className="grid grid-cols-2 gap-3 text-sm text-gray-700">
-            <li className="rounded-xl border p-3">KYC / CIP basics</li>
-            <li className="rounded-xl border p-3">Risk tolerance</li>
-            <li className="rounded-2xl border p-3">Income & net worth</li>
-            <li className="rounded-2xl border p-3">Document upload</li>
-            <li className="rounded-2xl border p-3">Per-advisor analytics</li>
-            <li className="rounded-2xl border p-3">Email notifications</li>
-          </ul>
-        </div>
-      </section>
-
-      {/* PROOF BAR */}
-      <section className="border-y bg-white">
-        <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6 flex flex-wrap items-center gap-6 justify-between">
-          <p className="text-sm text-gray-600">
-            Built for RIAs, broker-dealers, and wealth teams modernizing client intake.
-          </p>
-          <div className="flex items-center gap-4 text-xs text-gray-500">
-            <span className="rounded-full border px-3 py-1">Faster conversion</span>
-            <span className="rounded-full border px-3 py-1">Cleaner data</span>
-            <span className="rounded-full border px-3 py-1">Lower NIGO</span>
-          </div>
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section id="how" className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 space-y-8">
-        <h2 className="text-2xl font-semibold">How it works</h2>
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="rounded-2xl border p-5 bg-white">
-            <div className="text-sm font-semibold">1) Share a link</div>
-            <p className="mt-2 text-sm text-gray-600">
-              Each advisor gets a unique URL. Track usage by advisor or even per person with{" "}
-              <code>?contact=</code> tags.
-            </p>
-          </div>
-          <div className="rounded-2xl border p-5 bg-white">
-            <div className="text-sm font-semibold">2) Client completes guided intake</div>
-            <p className="mt-2 text-sm text-gray-600">
-              KYC/CIP essentials, risk score, income/net worth and documents — mobile friendly.
-            </p>
-          </div>
-          <div className="rounded-2xl border p-5 bg-white">
-            <div className="text-sm font-semibold">3) Review in Admin</div>
-            <p className="mt-2 text-sm text-gray-600">
-              See weekly submissions, completion rates, and averages. Export or push downstream.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* SECURITY */}
-      <section id="security" className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 space-y-6">
-        <h2 className="text-2xl font-semibold">Security & compliance first</h2>
-        <ul className="grid md:grid-cols-2 gap-3 text-sm text-gray-700">
-          <li className="rounded-xl border p-4 bg-white">JWT + HttpOnly cookies; scoped access per advisor</li>
-          <li className="rounded-xl border p-4 bg-white">Minimal PII collection; no SSNs by default</li>
-          <li className="rounded-xl border p-4 bg-white">Neon Postgres with PITR; Prisma row-level scoping</li>
-          <li className="rounded-xl border p-4 bg-white">Email alerts via Resend; no sensitive payloads</li>
-        </ul>
-      </section>
-
-      {/* PRICING */}
-      <section id="pricing" className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14">
-        <h2 className="text-2xl font-semibold mb-6">Pricing</h2>
-        <div className="grid md:grid-cols-3 gap-4">
-          <div className="rounded-2xl border p-6 bg-white">
-            <div className="text-sm font-semibold">Starter</div>
-            <div className="mt-2 text-3xl font-bold">$99<span className="text-base font-medium">/month</span></div>
-            <p className="mt-2 text-sm text-gray-600">
-              Up to <strong>25</strong> completed intakes per month, then <strong>$10</strong> per additional client.
-            </p>
-            <Link href="/pilot" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-medium bg-gray-900 text-white">
-              Start demo
+            <Link href="/pricing" className="inline-flex rounded-lg border border-slate-700 px-5 py-3 text-sm font-medium text-white">
+              Review pricing
             </Link>
           </div>
-
-          <div className="rounded-2xl border p-6 bg-white">
-            <div className="text-sm font-semibold">Professional</div>
-            <div className="mt-2 text-3xl font-bold">$249<span className="text-base font-medium">/month</span></div>
-            <p className="mt-2 text-sm text-gray-600">
-              Includes <strong>100</strong> client intakes/month. $8 per additional. Ideal for small RIA teams.
-            </p>
-            <a href="#book" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-medium border">
-              Request pilot
-            </a>
-          </div>
-
-          <div className="rounded-2xl border p-6 bg-white">
-            <div className="text-sm font-semibold">Enterprise</div>
-            <div className="mt-2 text-3xl font-bold">Custom</div>
-            <p className="mt-2 text-sm text-gray-600">
-              For larger wealth firms — includes white labeling, SSO, and custom data integrations.
-            </p>
-            <a href="#book" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-medium border">
-              Talk to us
-            </a>
-          </div>
         </div>
-        <p className="mt-3 text-xs text-gray-500">
-          Beta promo: first <strong>50</strong> completed intakes free for early adopters.
-        </p>
-      </section>
-
-      {/* FAQ */}
-      <section id="faq" className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-14 space-y-6">
-        <h2 className="text-2xl font-semibold">FAQs</h2>
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="rounded-2xl border p-5 bg-white">
-            <div className="font-medium">Is this compliant?</div>
-            <p className="mt-2 text-sm text-gray-600">
-              We capture CIP/KYC basics and avoid SSNs by default. Add only what your compliance team approves.
-            </p>
-          </div>
-          <div className="rounded-2xl border p-5 bg-white">
-            <div className="font-medium">Can advisors share unique links?</div>
-            <p className="mt-2 text-sm text-gray-600">
-              Yes — each advisor has a tokenized URL. You can also tag links with <code>?contact=NAME</code> to attribute outreach.
-            </p>
-          </div>
-          <div className="rounded-2xl border p-5 bg-white">
-            <div className="font-medium">Where is data stored?</div>
-            <p className="mt-2 text-sm text-gray-600">
-              Securely in Neon Postgres with point-in-time recovery. Access scoped per advisor.
-            </p>
-          </div>
-          <div className="rounded-2xl border p-5 bg-white">
-            <div className="font-medium">Can we export or integrate?</div>
-            <p className="mt-2 text-sm text-gray-600">
-              Yes — export CSV/JSON today; roadmap includes custodial & CRM integrations.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section id="book" className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16 text-center">
-        <div className="rounded-2xl border bg-white p-10">
-          <h3 className="text-2xl font-semibold">Ready to pilot with your team?</h3>
-          <p className="mt-2 text-gray-600">
-            Give us 30 minutes. We’ll set up advisor links and a clean demo using your data.
-          </p>
-          <div className="mt-4 flex items-center justify-center gap-3">
-            <Link href="/pilot" className="rounded-xl px-5 py-3 text-sm font-medium bg-gray-900 text-white">
-              Create Trial
-            </Link>
-            <a href="mailto:demo@advisoronboarding.app" className="rounded-xl px-5 py-3 text-sm font-medium border">
-              Email Us
-            </a>
-          </div>
-        </div>
-        <p className="mt-6 text-xs text-gray-500">
-          © {new Date().getFullYear()} Client Onboarding
-        </p>
       </section>
     </main>
   );

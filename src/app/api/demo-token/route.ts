@@ -33,6 +33,12 @@ export async function POST(req: Request) {
     const leadName = (body?.name ?? "").toString().trim();
     const leadEmail = (body?.email ?? "").toString().trim().toLowerCase() || undefined;
     const leadFirm = (body?.firm ?? "").toString().trim() || undefined;
+    const website = (body?.website ?? "").toString().trim() || undefined;
+    const teamSize = (body?.teamSize ?? "").toString().trim() || undefined;
+    const timeline = (body?.timeline ?? "").toString().trim() || undefined;
+    const currentProcess = (body?.currentProcess ?? "").toString().trim() || undefined;
+    const plan = (body?.plan ?? "").toString().trim() || undefined;
+    const planName = (body?.planName ?? "").toString().trim() || undefined;
     const source = (body?.source ?? "website").toString().trim() || "website";
 
     const name = leadName || process.env.DEMO_ADVISOR_NAME || "Demo Advisor";
@@ -133,6 +139,12 @@ export async function POST(req: Request) {
         leadId: created.leadId,
         metadata: {
           source,
+          plan,
+          planName,
+          website,
+          teamSize,
+          timeline,
+          currentProcess,
           hasLead: !!created.leadId,
           onboardingUrl,
           adminUrl,
@@ -146,13 +158,23 @@ export async function POST(req: Request) {
         action: created.leadId ? "trial.requested" : "demo.link.generated",
         targetType: "advisor",
         targetId: created.advisor.id,
-        metadata: { source, hasLead: !!created.leadId, portalUserCreated: !!portalUser },
+        metadata: {
+          source,
+          plan,
+          planName,
+          website,
+          teamSize,
+          timeline,
+          hasLead: !!created.leadId,
+          portalUserCreated: !!portalUser,
+        },
       }),
       leadEmail
         ? syncTrialLeadToHubSpot({
             name: leadName,
             email: leadEmail,
             firm: leadFirm,
+            website,
           })
         : Promise.resolve(),
     ]);
@@ -161,11 +183,18 @@ export async function POST(req: Request) {
     if (internalTo && created.leadId) {
       await sendMail({
         to: internalTo,
-        subject: "New Marengo trial request",
+        subject: `New Marengo trial request${planName ? ` - ${planName}` : ""}`,
         text: `Lead: ${leadName}
 Email: ${leadEmail}
 Firm: ${leadFirm || "(none)"}
+Website: ${website || "(none)"}
+Requested plan: ${planName || plan || "(none)"}
+Advisor team size: ${teamSize || "(none)"}
+Desired timeline: ${timeline || "(none)"}
 Source: ${source}
+
+Current onboarding process:
+${currentProcess || "(not provided)"}
 
 Onboarding URL:
 ${onboardingUrl}
@@ -189,6 +218,7 @@ ${portalUser?.temporaryPassword || "(not provisioned)"}`,
 
 Name: ${leadName || created.advisor.name}
 Firm: ${leadFirm || created.advisor.firm || "(none)"}
+Requested rollout: ${planName || plan || "guided trial"}
 
 Login URL: ${loginUrl}
 Email: ${portalUser.email}
