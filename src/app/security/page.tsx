@@ -121,13 +121,24 @@ export default function SecurityPage() {
 
             <div className="rounded-[1.7rem] border border-white/70 bg-white/72 p-5 text-sm leading-7 text-slate-600 backdrop-blur">
               <p>
-                Looking for the privacy and contractual side too? Review the{" "}
+                Looking for the broader diligence packet? Start in the{" "}
+                <Link className="underline" href="/trust">
+                  Trust Center
+                </Link>
+                , then review the{" "}
                 <Link className="underline" href="/legal/privacy">
                   Privacy Policy
                 </Link>{" "}
                 and{" "}
                 <Link className="underline" href="/legal/terms">
                   Terms
+                </Link>
+                .
+              </p>
+              <p className="mt-3">
+                Data-subject requests can be submitted through the{" "}
+                <Link className="underline" href="/privacy/request">
+                  privacy request form
                 </Link>
                 .
               </p>

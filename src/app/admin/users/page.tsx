@@ -19,6 +19,8 @@ export default async function AdminUsersPage() {
         email: true,
         role: true,
         isActive: true,
+        mfaEnabled: true,
+        mfaMethod: true,
         advisorId: true,
         lastLoginAt: true,
         advisor: {
@@ -64,6 +66,7 @@ export default async function AdminUsersPage() {
           ...user,
           role: user.role as "owner" | "advisor" | "ops",
           lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+          mfaMethod: user.mfaMethod ?? null,
         }))}
         advisors={advisors}
       />

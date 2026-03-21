@@ -8,6 +8,7 @@ type PortalUser = {
   email: string;
   role: "owner" | "advisor" | "ops";
   isActive: boolean;
+  mfaMethod: string | null;
   advisorId: string | null;
   lastLoginAt: string | null;
   advisor: {
@@ -268,6 +269,9 @@ function UserRow({
           <div className="text-sm font-medium text-slate-900">{user.email}</div>
           <div className="text-xs text-slate-500">
             Last login: {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "Never"}
+          </div>
+          <div className="text-xs text-slate-500">
+            MFA: {user.mfaMethod === "email_otp" ? "Email code required" : "Required"}
           </div>
         </div>
 

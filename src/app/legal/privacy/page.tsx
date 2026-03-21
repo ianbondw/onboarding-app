@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LEGAL_LAST_UPDATED, PRIVACY_EMAIL, SECURITY_EMAIL, SITE_ORIGIN, toMailto } from "@/lib/site-config";
 
 export const metadata: Metadata = {
@@ -116,11 +117,25 @@ export default function PrivacyPage() {
                   {SECURITY_EMAIL}
                 </a>
               </div>
+              <div className="mt-3 text-sm leading-7 text-slate-600">
+                Prefer a workflow instead of an email thread? Use the{" "}
+                <Link className="underline" href="/privacy/request">
+                  privacy request form
+                </Link>
+                .
+              </div>
             </div>
             <div className="text-sm leading-7 text-slate-600">
               <p>
                 This notice supplements, but does not replace, customer contracts, data processing
                 terms, or regulator-specific disclosures that may apply to a particular deployment.
+              </p>
+              <p className="mt-3">
+                Supporting trust documents are available in the{" "}
+                <Link className="underline" href="/trust">
+                  Trust Center
+                </Link>
+                .
               </p>
               <p className="mt-3">
                 Canonical reference:{" "}

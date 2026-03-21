@@ -24,6 +24,8 @@ export async function GET() {
       email: true,
       role: true,
       isActive: true,
+      mfaEnabled: true,
+      mfaMethod: true,
       advisorId: true,
       lastLoginAt: true,
       advisor: {
@@ -64,6 +66,7 @@ export async function POST(req: Request) {
       advisorId,
       password,
       isActive: true,
+      mfaEnabled: true,
     });
 
     const advisor =
@@ -95,6 +98,7 @@ export async function POST(req: Request) {
           "",
           `Login URL: ${loginUrl}`,
           `Temporary password: ${provisioned.temporaryPassword}`,
+          "Multi-factor authentication: required by email code at sign-in.",
           advisorMagicUrl ? "" : "",
           advisorMagicUrl ? `Direct advisor dashboard link: ${advisorMagicUrl}` : "",
         ]

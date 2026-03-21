@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LEGAL_EMAIL, LEGAL_LAST_UPDATED, SITE_ORIGIN, toMailto } from "@/lib/site-config";
 
 export const metadata: Metadata = {
@@ -95,10 +96,23 @@ export default function TermsPage() {
         <section className="section-shell p-8">
           <div className="relative z-10 grid gap-4 md:grid-cols-2">
             <div className="text-sm leading-7 text-slate-700">
-              Legal contact:{" "}
-              <a className="underline" href={toMailto(LEGAL_EMAIL, "Legal inquiry")}>
-                {LEGAL_EMAIL}
-              </a>
+              <div>
+                Legal contact:{" "}
+                <a className="underline" href={toMailto(LEGAL_EMAIL, "Legal inquiry")}>
+                  {LEGAL_EMAIL}
+                </a>
+              </div>
+              <div className="mt-3 text-slate-600">
+                Contract-prep baselines are available at{" "}
+                <Link className="underline" href="/legal/dpa">
+                  DPA-Ready Baseline
+                </Link>{" "}
+                and{" "}
+                <Link className="underline" href="/legal/msa">
+                  MSA-Ready Baseline
+                </Link>
+                .
+              </div>
             </div>
             <div className="text-sm leading-7 text-slate-600">
               Canonical reference:{" "}

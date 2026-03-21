@@ -131,8 +131,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link className="link" href="/contact">
                 Contact
               </Link>
-              <Link className="link" href="/security">
-                Security
+              <Link className="link" href="/trust">
+                Trust Center
               </Link>
               <a className="btn-secondary" href={adminHref}>
                 Admin
@@ -183,11 +183,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link className="link" href="/contact">
                   Contact
                 </Link>
+                <Link className="link" href="/trust">
+                  Trust Center
+                </Link>
                 <Link className="link" href="/security">
                   Security
                 </Link>
                 <Link className="link" href="/legal/privacy">
                   Privacy
+                </Link>
+                <Link className="link" href="/privacy/request">
+                  Privacy Request
                 </Link>
                 <Link className="link" href="/legal/terms">
                   Terms

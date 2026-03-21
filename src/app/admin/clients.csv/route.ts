@@ -16,7 +16,10 @@ export async function GET() {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const where = access.role === "advisor" ? { advisorId: access.advisorId || "" } : {};
+  const where =
+    access.role === "advisor"
+      ? { advisorId: access.advisorId || "", retentionStatus: { not: "redacted" } }
+      : { retentionStatus: { not: "redacted" } };
 
   const rows = await prisma.client.findMany({
     where,

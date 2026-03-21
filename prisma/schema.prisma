@@ -91,6 +91,8 @@ model Client {
   // Consent & status
   consentAcceptedAt  DateTime?
   onboardingStatus   String    @default("in_progress") // in_progress | verified | declined
+  retentionStatus    String    @default("active") // active | legal_hold | deletion_pending | redacted
+  deletedAt          DateTime?
 
   // Advisor tracking
   advisorId          String?   // keep optional to avoid migration pain on old rows
@@ -112,6 +114,7 @@ model Client {
 
   @@index([createdAt])
   @@index([advisorId])
+  @@index([retentionStatus, deletedAt])
   @@unique([advisorId, email]) // ⬅️ unique per advisor
 }
 
@@ -140,8 +143,10 @@ model Advisor {
   users       PortalUser[]
   sessions    PortalSession[]
   trialLeads  TrialLead[]
+  privacyRequests PrivacyRequest[]
   lifecycleEvents LifecycleEvent[]
   auditLogs   AuditLog[]
+  loginChallenges PortalLoginChallenge[]
 }
 
 model IntakeLink {
@@ -165,11 +170,14 @@ model PortalUser {
   passwordHash String?
   role         String          // owner | advisor | ops
   isActive     Boolean         @default(true)
+  mfaEnabled   Boolean         @default(true)
+  mfaMethod    String?         @default("email_otp")
   lastLoginAt  DateTime?
   advisorId    String?
   advisor      Advisor?        @relation(fields: [advisorId], references: [id], onDelete: Cascade)
   sessions     PortalSession[]
   auditLogs    AuditLog[]
+  loginChallenges PortalLoginChallenge[]
 
   @@index([advisorId, role])
 }
@@ -201,6 +209,8 @@ model TrialLead {
   firm           String?
   source         String           @default("website")
   status         String           @default("new") // new | activated | archived
+  retentionStatus String          @default("active") // active | legal_hold | deletion_pending | redacted
+  deletedAt      DateTime?
   onboardingUrl  String?
   adminUrl       String?
   metadata       Json?
@@ -210,6 +220,60 @@ model TrialLead {
 
   @@index([email, createdAt])
   @@index([advisorId, status])
+  @@index([retentionStatus, deletedAt])
+}
+
+model PortalLoginChallenge {
+  id             String      @id @default(cuid())
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  tokenHash      String      @unique
+  codeHash       String
+  purpose        String      @default("login")
+  email          String
+  role           String
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  failedAttempts Int         @default(0)
+  ipHash         String?
+  userAgent      String?
+  userId         String?
+  user           PortalUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  advisorId      String?
+  advisor        Advisor?    @relation(fields: [advisorId], references: [id], onDelete: Cascade)
+
+  @@index([email, expiresAt])
+  @@index([userId, expiresAt])
+  @@index([advisorId, expiresAt])
+}
+
+model PrivacyRequest {
+  id                String      @id @default(cuid())
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  requestType       String      // access | deletion | correction | retention_review | legal_hold
+  status            String      @default("received") // received | awaiting_identity | in_review | approved | completed | rejected | on_hold
+  source            String      @default("website") // website | internal | customer_success
+  subjectType       String      @default("individual") // individual | client | lead | advisor_user | firm
+  email             String
+  name              String
+  firm              String?
+  relationship      String?
+  advisorId         String?
+  advisor           Advisor?    @relation(fields: [advisorId], references: [id], onDelete: SetNull)
+  dueAt             DateTime?
+  reviewedAt        DateTime?
+  reviewedBy        String?
+  completedAt       DateTime?
+  legalHold         Boolean     @default(false)
+  identityVerifiedAt DateTime?
+  details           String?
+  resolutionSummary String?
+  metadata          Json?
+
+  @@index([email, status])
+  @@index([requestType, status])
+  @@index([advisorId, createdAt])
 }
 
 model LifecycleEvent {

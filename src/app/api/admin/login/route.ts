@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import {
+  authenticatePortalUser,
   clearPortalSessionCookie,
-  loginPortalUser,
+  createPortalSessionForUser,
   setPortalSessionCookie,
 } from "@/lib/admin-auth";
 import { hashToken } from "@/lib/security";
+import {
+  issuePortalLoginChallenge,
+  requestIpFingerprint,
+  shouldRequirePortalMfa,
+} from "@/lib/portal-mfa";
 import { recordAuditLog, recordLifecycleEvent } from "@/lib/lifecycle";
 
 export const dynamic = "force-dynamic";
@@ -60,7 +66,7 @@ export async function POST(req: Request) {
     password: "",
   }));
   const normalizedEmail = String(email || "").trim().toLowerCase();
-  const ipHash = fingerprint(clientIp(req));
+  const ipHash = requestIpFingerprint(req);
 
   if (!password) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -74,8 +80,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const login = await loginPortalUser(normalizedEmail, password);
-  if (!login) {
+  const user = await authenticatePortalUser(normalizedEmail, password);
+  if (!user) {
     await Promise.allSettled([
       recordLifecycleEvent({
         eventType: "portal.login.failed",
@@ -99,6 +105,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   clearLoginAttempts(req, normalizedEmail);
+
+  if (shouldRequirePortalMfa(user)) {
+    const challenge = await issuePortalLoginChallenge({
+      user,
+      ipHash,
+      userAgent: req.headers.get("user-agent"),
+    });
+
+    return NextResponse.json({
+      ok: true,
+      mfaRequired: true,
+      challengeToken: challenge.challengeToken,
+      emailHint: challenge.emailHint,
+      expiresInSec: challenge.expiresInSec,
+      ...(challenge.debugCode ? { debugCode: challenge.debugCode } : {}),
+    });
+  }
+
+  const login = await createPortalSessionForUser(user);
 
   const res = NextResponse.json({ ok: true, role: login.role });
   clearPortalSessionCookie(res);

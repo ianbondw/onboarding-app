@@ -4,7 +4,7 @@ import { prisma } from "../../../prisma";
 import SentryInit from "./SentryInit";
 import QuickActions from "@/components/QuickActions";
 import StatusCell from "./StatusCell";
-import { canManagePortalUsers, getAdminAccess } from "@/lib/admin-auth";
+import { canManagePortalUsers, getAdminAccess, hasBackofficeAccess } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,7 +84,10 @@ export default async function AdminClients(props: any) {
   }> = [];
 
   try {
-    const baseWhere: any = advisorId ? { advisorId } : {};
+    const baseWhere: any = {
+      ...(advisorId ? { advisorId } : {}),
+      retentionStatus: { not: "redacted" },
+    };
     totalClients = await prisma.client.count({ where: baseWhere });
 
     const recent = await prisma.client.findMany({
@@ -102,11 +105,14 @@ export default async function AdminClients(props: any) {
     }
 
     if (ownerMode) {
-      leadSummary.total = await prisma.trialLead.count();
+      leadSummary.total = await prisma.trialLead.count({
+        where: { retentionStatus: { not: "redacted" } },
+      });
       leadSummary.activated = await prisma.trialLead.count({
-        where: { status: "activated" },
+        where: { status: "activated", retentionStatus: { not: "redacted" } },
       });
       recentLeads = await prisma.trialLead.findMany({
+        where: { retentionStatus: { not: "redacted" } },
         orderBy: { createdAt: "desc" },
         take: 6,
         select: {
@@ -154,7 +160,10 @@ export default async function AdminClients(props: any) {
   } as const;
 
   try {
-    const baseWhere: any = advisorId ? { advisorId } : {};
+    const baseWhere: any = {
+      ...(advisorId ? { advisorId } : {}),
+      retentionStatus: { not: "redacted" },
+    };
     const whereWithStatus = statusFilter
       ? { ...baseWhere, onboardingStatus: statusFilter as any }
       : baseWhere;
@@ -238,6 +247,11 @@ export default async function AdminClients(props: any) {
               {canManagePortalUsers(access) ? (
                 <Link href="/admin/users" className="btn-secondary">
                   Portal Users
+                </Link>
+              ) : null}
+              {hasBackofficeAccess(access) ? (
+                <Link href="/admin/privacy-requests" className="btn-secondary">
+                  Privacy Queue
                 </Link>
               ) : null}
               <a href="/admin/clients.csv" className="btn-secondary" download>

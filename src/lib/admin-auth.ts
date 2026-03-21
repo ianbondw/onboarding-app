@@ -26,6 +26,16 @@ export type AdminAccess = {
   label: string | null;
 };
 
+export type AuthenticatedPortalUser = {
+  id: string;
+  email: string;
+  role: PortalRole;
+  isActive: boolean;
+  advisorId: string | null;
+  mfaEnabled: boolean;
+  mfaMethod: string | null;
+};
+
 function normalizePortalRole(role: string | null | undefined): PortalRole | null {
   if (role === "owner" || role === "advisor" || role === "ops") return role;
   return null;
@@ -114,18 +124,24 @@ export async function ensureOwnerUser() {
       passwordHash,
       role: "owner",
       isActive: true,
+      mfaEnabled: true,
+      mfaMethod: "email_otp",
     },
     create: {
       email,
       passwordHash,
       role: "owner",
       isActive: true,
+      mfaEnabled: true,
+      mfaMethod: "email_otp",
     },
     select: {
       id: true,
       email: true,
       role: true,
       isActive: true,
+      mfaEnabled: true,
+      mfaMethod: true,
       passwordHash: true,
     },
   });
@@ -247,7 +263,10 @@ export async function getAdminAccess(): Promise<AdminAccess | null> {
   };
 }
 
-export async function loginPortalUser(emailInput: string | null | undefined, password: string) {
+export async function authenticatePortalUser(
+  emailInput: string | null | undefined,
+  password: string
+): Promise<AuthenticatedPortalUser | null> {
   await ensureOwnerUser();
 
   const email = normalizeEmail(emailInput || process.env.ADMIN_EMAIL || "owner@local");
@@ -261,6 +280,8 @@ export async function loginPortalUser(emailInput: string | null | undefined, pas
       role: true,
       isActive: true,
       advisorId: true,
+      mfaEnabled: true,
+      mfaMethod: true,
     },
   });
 
@@ -269,25 +290,43 @@ export async function loginPortalUser(emailInput: string | null | undefined, pas
   if (role === "advisor" && !user.advisorId) return null;
   if (!verifyPassword(password, user.passwordHash)) return null;
 
+  return {
+    id: user.id,
+    email: user.email,
+    role,
+    isActive: user.isActive,
+    advisorId: user.advisorId ?? null,
+    mfaEnabled: user.mfaEnabled !== false,
+    mfaMethod: user.mfaMethod ?? null,
+  };
+}
+
+export async function createPortalSessionForUser(user: AuthenticatedPortalUser) {
   await prisma.portalUser.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date() },
   });
 
   const created = await createPortalSession({
-    role,
+    role: user.role,
     userId: user.id,
     advisorId: user.advisorId ?? null,
     label: user.email,
-    ttlSec: sessionTtlForRole(role),
+    ttlSec: sessionTtlForRole(user.role),
   });
 
   return {
     user,
-    role,
+    role: user.role,
     token: created.token,
     ttlSec: created.ttlSec,
   };
+}
+
+export async function loginPortalUser(emailInput: string | null | undefined, password: string) {
+  const user = await authenticatePortalUser(emailInput, password);
+  if (!user) return null;
+  return createPortalSessionForUser(user);
 }
 
 export async function provisionPortalUser(input: {
@@ -296,6 +335,7 @@ export async function provisionPortalUser(input: {
   advisorId?: string | null;
   password?: string | null;
   isActive?: boolean;
+  mfaEnabled?: boolean;
 }) {
   const email = normalizeEmail(input.email);
   if (!email) throw new Error("Portal user email is required.");
@@ -337,6 +377,8 @@ export async function provisionPortalUser(input: {
     role,
     advisorId,
     isActive: input.isActive ?? true,
+    mfaEnabled: input.mfaEnabled ?? true,
+    mfaMethod: "email_otp",
   };
 
   const user = existing
@@ -349,6 +391,8 @@ export async function provisionPortalUser(input: {
           role: true,
           advisorId: true,
           isActive: true,
+          mfaEnabled: true,
+          mfaMethod: true,
         },
       })
     : await prisma.portalUser.create({
@@ -359,6 +403,8 @@ export async function provisionPortalUser(input: {
           role: true,
           advisorId: true,
           isActive: true,
+          mfaEnabled: true,
+          mfaMethod: true,
         },
       });
 
@@ -379,6 +425,7 @@ export async function updatePortalUser(input: {
   advisorId?: string | null;
   password?: string | null;
   isActive?: boolean;
+  mfaEnabled?: boolean;
 }) {
   const existing = await prisma.portalUser.findUnique({
     where: { id: input.id },
@@ -388,6 +435,7 @@ export async function updatePortalUser(input: {
       role: true,
       advisorId: true,
       isActive: true,
+      mfaEnabled: true,
     },
   });
   if (!existing) return null;
@@ -416,6 +464,8 @@ export async function updatePortalUser(input: {
       role,
       advisorId,
       isActive: input.isActive ?? existing.isActive,
+      mfaEnabled: input.mfaEnabled ?? existing.mfaEnabled,
+      mfaMethod: "email_otp",
       ...(input.password?.trim()
         ? { passwordHash: hashPassword(input.password.trim()) }
         : {}),
@@ -426,6 +476,8 @@ export async function updatePortalUser(input: {
       role: true,
       advisorId: true,
       isActive: true,
+      mfaEnabled: true,
+      mfaMethod: true,
       lastLoginAt: true,
     },
   });

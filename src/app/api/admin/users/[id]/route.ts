@@ -57,7 +57,8 @@ export async function PATCH(req: Request, context: { params: Params }) {
 Role: ${updated.role}
 
 Login URL: ${adminOrigin}/admin/login
-Temporary password: ${password.trim()}`,
+Temporary password: ${password.trim()}
+Multi-factor authentication: required by email code at sign-in.`,
       });
     }
 
