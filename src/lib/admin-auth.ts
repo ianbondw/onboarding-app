@@ -5,9 +5,13 @@ import { hashPassword, hashToken, randomToken, verifyPassword } from "@/lib/secu
 
 export const PORTAL_SESSION_COOKIE = "portal_session";
 
-const OWNER_TTL_SEC = 60 * 60 * 12;
-const OPS_TTL_SEC = 60 * 60 * 12;
-const ADVISOR_TTL_SEC = 60 * 60 * 24 * 30;
+const OWNER_TTL_SEC = readPositiveInt("PORTAL_OWNER_SESSION_HOURS", 8) * 60 * 60;
+const OPS_TTL_SEC = readPositiveInt("PORTAL_OPS_SESSION_HOURS", 8) * 60 * 60;
+const ADVISOR_TTL_SEC = readPositiveInt("PORTAL_ADVISOR_SESSION_HOURS", 7 * 24) * 60 * 60;
+const OWNER_IDLE_SEC = readPositiveInt("PORTAL_OWNER_IDLE_MINUTES", 30) * 60;
+const OPS_IDLE_SEC = readPositiveInt("PORTAL_OPS_IDLE_MINUTES", 30) * 60;
+const ADVISOR_IDLE_SEC = readPositiveInt("PORTAL_ADVISOR_IDLE_HOURS", 12) * 60 * 60;
+const SESSION_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
 
 export type PortalRole = "owner" | "advisor" | "ops";
 
@@ -33,8 +37,21 @@ function sessionTtlForRole(role: PortalRole) {
   return OWNER_TTL_SEC;
 }
 
+function sessionIdleForRole(role: PortalRole) {
+  if (role === "advisor") return ADVISOR_IDLE_SEC;
+  if (role === "ops") return OPS_IDLE_SEC;
+  return OWNER_IDLE_SEC;
+}
+
 function normalizeEmail(value: string | null | undefined) {
   return (value || "").trim().toLowerCase();
+}
+
+function readPositiveInt(name: string, fallback: number) {
+  const raw = (process.env[name] || "").trim();
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.floor(parsed);
 }
 
 export function hasBackofficeAccess(access: AdminAccess | null | undefined) {
@@ -61,10 +78,11 @@ export function canAccessAdvisorScope(
 function cookieConfig(maxAge: number) {
   return {
     httpOnly: true,
-    sameSite: "lax" as const,
+    sameSite: "strict" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge,
+    priority: "high" as const,
   };
 }
 
@@ -153,6 +171,7 @@ export async function getPortalSessionByToken(rawToken: string | null | undefine
       label: true,
       advisorId: true,
       expiresAt: true,
+      lastSeenAt: true,
       userId: true,
       user: {
         select: {
@@ -186,9 +205,23 @@ export async function getPortalSessionByToken(rawToken: string | null | undefine
     await prisma.portalSession.delete({ where: { id: session.id } }).catch(() => null);
     return null;
   }
+  const idleDeadline = session.lastSeenAt.getTime() + sessionIdleForRole(role) * 1000;
+  if (idleDeadline <= Date.now()) {
+    await prisma.portalSession.delete({ where: { id: session.id } }).catch(() => null);
+    return null;
+  }
   if (role === "advisor" && !session.advisorId) {
     await prisma.portalSession.delete({ where: { id: session.id } }).catch(() => null);
     return null;
+  }
+  if (Date.now() - session.lastSeenAt.getTime() >= SESSION_TOUCH_INTERVAL_MS) {
+    void prisma.portalSession
+      .update({
+        where: { id: session.id },
+        data: { lastSeenAt: new Date() },
+        select: { id: true },
+      })
+      .catch(() => null);
   }
 
   return session;

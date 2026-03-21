@@ -1,6 +1,7 @@
 // src/app/onboarding/[token]/wizard.tsx
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   EMPLOYMENT_OPTIONS,
@@ -555,21 +556,46 @@ export default function Wizard({ token }: { token: string }) {
       {step === 5 && (
         <Card title="Identity (demo)">
           <p className="mb-3 text-sm text-gray-600">
-            For demo, SSN <strong>last-4</strong> is fine. Document field is optional. (In production, we’ll use a KYC provider and never store files directly.)
+            Submit only the minimum needed for review. For demo, SSN <strong>last four</strong>
+            is enough and document type is optional.
           </p>
           <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-            Secure verification is requested after submit. Do not paste document file URLs into the
-            onboarding form.
+            Secure verification is requested after submit. Do not paste document links, uploads,
+            or full SSNs into this form.
           </div>
           <Grid>
             <Input label="Date of birth" value={dateOfBirth} onChange={setDateOfBirth} type="date" />
-            <Input label="SSN (last-4)" value={ssn} onChange={setSSN} maxLength={4} />
+            <Input
+              label="SSN (last four)"
+              value={ssn}
+              onChange={setSSN}
+              maxLength={4}
+              inputMode="numeric"
+              pattern="\\d{4}"
+              autoComplete="off"
+              placeholder="1234"
+            />
             <Select label="ID document type (optional)" value={idDocType} onChange={setIdDocType} options={ID_DOC_TYPES} />
           </Grid>
 
-          <label className="mt-4 flex items-center gap-2 text-sm">
+          <label className="mt-4 flex items-start gap-2 text-sm">
             <input type="checkbox" checked={consentAccepted} onChange={e=>setConsent(e.target.checked)} />
-            <span>I consent to data processing & e-signature.</span>
+            <span>
+              I consent to processing of the information I submit for onboarding, identity review,
+              and follow-up. I have reviewed the{" "}
+              <Link className="underline" href="/legal/privacy">
+                Privacy Policy
+              </Link>
+              ,{" "}
+              <Link className="underline" href="/security">
+                Security
+              </Link>
+              , and{" "}
+              <Link className="underline" href="/legal/terms">
+                Terms
+              </Link>
+              .
+            </span>
           </label>
 
           <Nav step={step} setStep={setStep} canNext={consentAccepted} />
@@ -671,9 +697,27 @@ function Grid({ children }: { children: React.ReactNode }) {
   return <div className="grid gap-3 sm:grid-cols-2">{children}</div>;
 }
 function Input({
-  label, value, onChange, type="text", required, maxLength
+  label,
+  value,
+  onChange,
+  type = "text",
+  required,
+  maxLength,
+  inputMode,
+  pattern,
+  autoComplete,
+  placeholder,
 }: {
-  label: string; value: string; onChange: (v: string)=>void; type?: string; required?: boolean; maxLength?: number;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  required?: boolean;
+  maxLength?: number;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  pattern?: string;
+  autoComplete?: string;
+  placeholder?: string;
 }) {
   return (
     <label className="text-sm">
@@ -685,6 +729,10 @@ function Input({
         type={type}
         required={required}
         maxLength={maxLength}
+        inputMode={inputMode}
+        pattern={pattern}
+        autoComplete={autoComplete}
+        placeholder={placeholder}
       />
     </label>
   );

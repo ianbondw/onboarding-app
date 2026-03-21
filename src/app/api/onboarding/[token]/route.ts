@@ -202,6 +202,157 @@ function isPlainObject(v: unknown): v is Record<string, any> {
   return !!v && Object.prototype.toString.call(v) === "[object Object]";
 }
 
+function normalizeText(value: unknown, max = 160) {
+  if (typeof value !== "string") return null;
+  const collapsed = value.replace(/\s+/g, " ").trim();
+  if (!collapsed) return null;
+  return collapsed.slice(0, max);
+}
+
+function normalizeEmail(value: unknown) {
+  const cleaned = normalizeText(value, 254);
+  return cleaned ? cleaned.toLowerCase() : null;
+}
+
+function normalizePhone(value: unknown) {
+  const cleaned = normalizeText(value, 32);
+  return cleaned ? cleaned.replace(/[^\d+().\-\s]/g, "").trim() || null : null;
+}
+
+function normalizeDateOnly(value: unknown) {
+  if (typeof value !== "string") return null;
+  const cleaned = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) return null;
+  const parsed = new Date(`${cleaned}T12:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getTime() > Date.now()) return null;
+  return cleaned;
+}
+
+function normalizeLastFour(value: unknown) {
+  if (value === undefined || value === null || value === "") return null;
+  const digits = String(value).replace(/\D/g, "");
+  if (!digits) return null;
+  return /^\d{4}$/.test(digits) ? digits : null;
+}
+
+function uniqueChoices(value: unknown, max = 48) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((entry) => normalizeText(entry, max))
+        .filter((entry): entry is string => !!entry)
+    )
+  );
+}
+
+type GoalDetailShape = {
+  risk?: string;
+  horizon?: string;
+  liquidity?: string;
+  amountBand?: string;
+  priority?: boolean;
+};
+
+function sanitizeGoalsDetail(value: unknown): Record<string, GoalDetailShape> | undefined {
+  if (!isPlainObject(value)) return undefined;
+
+  const sanitized = Object.fromEntries(
+    Object.entries(value)
+      .map(([goalKey, raw]) => {
+        const key = normalizeText(goalKey, 48);
+        if (!key || !isPlainObject(raw)) return null;
+
+        const detail: GoalDetailShape = {
+          ...(normalizeText(raw.risk, 48) ? { risk: normalizeText(raw.risk, 48)! } : {}),
+          ...(normalizeText(raw.horizon, 48)
+            ? { horizon: normalizeText(raw.horizon, 48)! }
+            : {}),
+          ...(normalizeText(raw.liquidity, 48)
+            ? { liquidity: normalizeText(raw.liquidity, 48)! }
+            : {}),
+          ...(normalizeText(raw.amountBand, 48)
+            ? { amountBand: normalizeText(raw.amountBand, 48)! }
+            : {}),
+          ...(typeof raw.priority === "boolean" ? { priority: raw.priority } : {}),
+        };
+
+        return [key, detail] as const;
+      })
+      .filter((entry): entry is readonly [string, GoalDetailShape] => !!entry)
+  );
+
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+}
+
+function buildSubmissionSnapshot(input: {
+  employmentStatus: string | null;
+  annualIncomeBand: string | null;
+  sourceOfFunds: string | null;
+  liquidAssetsBand: string | null;
+  illiquidAssetsBand: string | null;
+  liabilitiesBand: string | null;
+  netWorthBand: string | null;
+  hasIRA: boolean;
+  has401k: boolean;
+  hasTaxable: boolean;
+  hasCrypto: boolean;
+  hasRealEstate: boolean;
+  riskTolerance: string | null;
+  timeHorizon: string | null;
+  primaryGoals: string[];
+  liquidityNeeds: string | null;
+  constraints: string[];
+  investmentExperience: string | null;
+  goalsDetail?: Record<string, GoalDetailShape>;
+  consentAccepted: boolean;
+  hasPhone: boolean;
+  hasAddress: boolean;
+  hasDob: boolean;
+  hasSsnLast4: boolean;
+  idDocType: string | null;
+  introNarrative: string | null;
+  goalsNarrative: string | null;
+  concernsNarrative: string | null;
+}) {
+  return {
+    schemaVersion: 2,
+    employmentStatus: input.employmentStatus,
+    annualIncomeBand: input.annualIncomeBand,
+    sourceOfFunds: input.sourceOfFunds,
+    liquidAssetsBand: input.liquidAssetsBand,
+    illiquidAssetsBand: input.illiquidAssetsBand,
+    liabilitiesBand: input.liabilitiesBand,
+    netWorthBand: input.netWorthBand,
+    hasIRA: input.hasIRA,
+    has401k: input.has401k,
+    hasTaxable: input.hasTaxable,
+    hasCrypto: input.hasCrypto,
+    hasRealEstate: input.hasRealEstate,
+    riskTolerance: input.riskTolerance,
+    timeHorizon: input.timeHorizon,
+    primaryGoals: input.primaryGoals,
+    liquidityNeeds: input.liquidityNeeds,
+    constraints: input.constraints,
+    investmentExperience: input.investmentExperience,
+    goalsDetail: input.goalsDetail || null,
+    consentAccepted: input.consentAccepted,
+    identitySignals: {
+      hasPhone: input.hasPhone,
+      hasAddress: input.hasAddress,
+      hasDob: input.hasDob,
+      hasSsnLast4: input.hasSsnLast4,
+      idDocType: input.idDocType,
+    },
+    narrativeSignals: {
+      introCaptured: !!input.introNarrative,
+      goalsCaptured: !!input.goalsNarrative,
+      concernsCaptured: !!input.concernsNarrative,
+    },
+  };
+}
+
 /* ------------------- Server-side completion computation -------------------- */
 function computeCompletion(input: {
   firstName?: string;
@@ -357,132 +508,184 @@ export async function POST(req: NextRequest, context: any) {
       concernsNarrative,
     } = body ?? {};
 
-    const rawSubmission =
-      isPlainObject(body)
-        ? {
-            ...body,
-            ...(ssn ? { ssn: "[redacted]" } : {}),
-            ...(dateOfBirth ? { dateOfBirth: "[redacted]" } : {}),
-            ...(idDocUrl ? { idDocUrl: "[redacted]" } : {}),
-            ...(proofOfAddressUrl ? { proofOfAddressUrl: "[redacted]" } : {}),
-          }
-        : undefined;
-
-    // Minimal but strict: require email (unique key) and some name signal
-    if (!email || typeof email !== "string") {
+    const emailSafe = normalizeEmail(email);
+    if (!emailSafe) {
       return json({ error: "Missing required field: email." }, 400);
     }
-    const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email));
+    const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailSafe);
     if (!emailOk) {
       return json({ error: "Please enter a valid email address." }, 400);
     }
-    const firstNameSafe = typeof firstName === "string" ? firstName : "";
-    const lastNameSafe = typeof lastName === "string" ? lastName : "";
-    const nameFallback = typeof fullName === "string" ? fullName.trim() : "";
+    const firstNameSafe = normalizeText(firstName, 80) || "";
+    const lastNameSafe = normalizeText(lastName, 80) || "";
+    const nameFallback = normalizeText(fullName, 160) || "";
     const [nf, nl] =
       !firstNameSafe && !lastNameSafe && nameFallback ? splitFullName(nameFallback) : [firstNameSafe, lastNameSafe];
+    const phoneSafe = normalizePhone(phone);
+    const addressLine1Safe = normalizeText(addressLine1, 160);
+    const addressLine2Safe = normalizeText(addressLine2, 160);
+    const citySafe = normalizeText(city, 80);
+    const stateSafe = normalizeText(state, 80);
+    const postalCodeSafe = normalizeText(postalCode, 24);
+    const countrySafe = normalizeText(country, 56);
+    const citizenshipSafe = normalizeText(citizenship, 56);
+    const employmentStatusSafe = normalizeText(employmentStatus, 48);
+    const employerNameSafe = normalizeText(employerName, 160);
+    const annualIncomeBandSafe = normalizeText(annualIncomeBand, 48);
+    const sourceOfFundsSafe = normalizeText(sourceOfFunds, 160);
+    const liquidAssetsBandSafe = normalizeText(liquidAssetsBand, 48);
+    const illiquidAssetsBandSafe = normalizeText(illiquidAssetsBand, 48);
+    const liabilitiesBandSafe = normalizeText(liabilitiesBand, 48);
+    const netWorthBandSafe = normalizeText(netWorthBand, 48);
+    const riskToleranceSafe = normalizeText(riskTolerance, 48);
+    const timeHorizonSafe = normalizeText(timeHorizon, 48);
+    const liquidityNeedsSafe = normalizeText(liquidityNeeds, 48);
+    const investmentExperienceSafe = normalizeText(investmentExperience, 48);
+    const primaryGoalsSafe = uniqueChoices(primaryGoals, 48);
+    const constraintsSafe = uniqueChoices(constraints, 48);
+    const idDocTypeSafe = normalizeText(idDocType, 48);
+    const introNarrativeSafe = normalizeText(introNarrative, 1200);
+    const goalsNarrativeSafe = normalizeText(goalsNarrative, 1200);
+    const concernsNarrativeSafe = normalizeText(concernsNarrative, 2000);
+    const dobValue = normalizeDateOnly(dateOfBirth);
+    if (dateOfBirth && !dobValue) {
+      return json({ error: "Please enter a valid date of birth." }, 400);
+    }
+    const ssnLast4 = normalizeLastFour(ssn);
+    if (ssn && !ssnLast4) {
+      return json({ error: "Only the last four digits of SSN may be submitted." }, 400);
+    }
+    const goalsDetailInput = sanitizeGoalsDetail(goalsDetail);
+    const consentAcceptedBool = !!consentAccepted;
+    const rawSubmission = buildSubmissionSnapshot({
+      employmentStatus: employmentStatusSafe,
+      annualIncomeBand: annualIncomeBandSafe,
+      sourceOfFunds: sourceOfFundsSafe,
+      liquidAssetsBand: liquidAssetsBandSafe,
+      illiquidAssetsBand: illiquidAssetsBandSafe,
+      liabilitiesBand: liabilitiesBandSafe,
+      netWorthBand: netWorthBandSafe,
+      hasIRA: !!hasIRA,
+      has401k: !!has401k,
+      hasTaxable: hasTaxable !== false,
+      hasCrypto: !!hasCrypto,
+      hasRealEstate: !!hasRealEstate,
+      riskTolerance: riskToleranceSafe,
+      timeHorizon: timeHorizonSafe,
+      primaryGoals: primaryGoalsSafe,
+      liquidityNeeds: liquidityNeedsSafe,
+      constraints: constraintsSafe,
+      investmentExperience: investmentExperienceSafe,
+      goalsDetail: goalsDetailInput,
+      consentAccepted: consentAcceptedBool,
+      hasPhone: !!phoneSafe,
+      hasAddress: !!(addressLine1Safe || citySafe || stateSafe || postalCodeSafe),
+      hasDob: !!dobValue,
+      hasSsnLast4: !!ssnLast4,
+      idDocType: idDocTypeSafe,
+      introNarrative: introNarrativeSafe,
+      goalsNarrative: goalsNarrativeSafe,
+      concernsNarrative: concernsNarrativeSafe,
+    });
 
-    const ssnEnc = ssn ? encryptPII(String(ssn)) : null;
-    const dobEnc = dateOfBirth ? encryptPII(String(dateOfBirth)) : null;
-    const consentAcceptedAt = consentAccepted ? new Date() : null;
+    const ssnEnc = ssnLast4 ? encryptPII(ssnLast4) : null;
+    const dobEnc = dobValue ? encryptPII(dobValue) : null;
+    const consentAcceptedAt = consentAcceptedBool ? new Date() : null;
     const complianceRequest =
-      ssn || dateOfBirth || idDocType
+      ssnLast4 || dobValue || idDocTypeSafe
         ? await createComplianceRequest({
             advisorId,
             advisorName: intake.advisor?.name ?? null,
-            clientEmail: email,
+            clientEmail: emailSafe,
             firstName: nf,
             lastName: nl,
-            dateOfBirth: dateOfBirth ? String(dateOfBirth) : null,
-            ssnLast4: ssn ? String(ssn) : null,
-            idDocType: idDocType ? String(idDocType) : null,
+            dateOfBirth: dobValue,
+            ssnLast4,
+            idDocType: idDocTypeSafe,
           })
         : null;
-    const identityVerificationStatus = ssn || dateOfBirth ? "in_review" : "pending";
+    const identityVerificationStatus = ssnLast4 || dobValue ? "in_review" : "pending";
     const documentVerificationStatus =
-      complianceRequest?.providerRef || idDocType ? "in_review" : "pending";
+      complianceRequest?.providerRef || idDocTypeSafe ? "in_review" : "pending";
     const idDocProviderRef = complianceRequest?.providerRef ?? null;
     const secureReviewUrl = complianceRequest?.reviewUrl ?? null;
-
-    // Only include JSON when it's a plain object; otherwise omit the field.
-    const goalsDetailInput = isPlainObject(goalsDetail) ? goalsDetail : undefined;
 
     // Compute completion snapshot from this payload
     const { pct: onboardingProgress, sections: sectionCompletion } = computeCompletion({
       firstName: nf,
       lastName: nl,
-      email,
-      employmentStatus,
-      annualIncomeBand,
-      liquidAssetsBand,
-      illiquidAssetsBand,
-      liabilitiesBand,
-      netWorthBand,
+      email: emailSafe,
+      employmentStatus: employmentStatusSafe || undefined,
+      annualIncomeBand: annualIncomeBandSafe || undefined,
+      liquidAssetsBand: liquidAssetsBandSafe || undefined,
+      illiquidAssetsBand: illiquidAssetsBandSafe || undefined,
+      liabilitiesBand: liabilitiesBandSafe || undefined,
+      netWorthBand: netWorthBandSafe || undefined,
       hasIRA,
       has401k,
       hasTaxable,
       hasCrypto,
       hasRealEstate,
-      primaryGoals,
+      primaryGoals: primaryGoalsSafe,
       goalsDetail: goalsDetailInput,
-      consentAccepted,
+      consentAccepted: consentAcceptedBool,
     });
 
     // 🔗 UPSERT the client **scoped to this advisor**
     const client = await prisma.client.upsert({
-      where: { advisorId_email: { advisorId, email } },
+      where: { advisorId_email: { advisorId, email: emailSafe } },
       create: {
         advisorId,
-        email,
+        email: emailSafe,
 
         // persist the specific link used for this submission
         intakeToken: token,
 
         firstName: nf,
         lastName: nl,
-        phone,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        addressLine1,
-        addressLine2,
-        city,
-        state,
-        postalCode,
-        country,
-        citizenship,
+        phone: phoneSafe,
+        dateOfBirth: null,
+        addressLine1: addressLine1Safe,
+        addressLine2: addressLine2Safe,
+        city: citySafe,
+        state: stateSafe,
+        postalCode: postalCodeSafe,
+        country: countrySafe,
+        citizenship: citizenshipSafe,
 
         ssnCipher: null,
         ssnIv: null,
         ssnEnc,
         dobEnc,
 
-        employmentStatus,
-        employerName,
-        annualIncomeBand,
-        sourceOfFunds,
-        liquidAssetsBand,
-        illiquidAssetsBand,
-        liabilitiesBand,
-        netWorthBand,
+        employmentStatus: employmentStatusSafe,
+        employerName: employerNameSafe,
+        annualIncomeBand: annualIncomeBandSafe,
+        sourceOfFunds: sourceOfFundsSafe,
+        liquidAssetsBand: liquidAssetsBandSafe,
+        illiquidAssetsBand: illiquidAssetsBandSafe,
+        liabilitiesBand: liabilitiesBandSafe,
+        netWorthBand: netWorthBandSafe,
         hasIRA: !!hasIRA,
         has401k: !!has401k,
         hasTaxable: hasTaxable !== false,
         hasCrypto: !!hasCrypto,
         hasRealEstate: !!hasRealEstate,
 
-        riskTolerance,
-        timeHorizon,
-        primaryGoals: Array.isArray(primaryGoals) ? primaryGoals : [],
-        liquidityNeeds,
-        constraints: Array.isArray(constraints) ? constraints : [],
-        investmentExperience,
+        riskTolerance: riskToleranceSafe,
+        timeHorizon: timeHorizonSafe,
+        primaryGoals: primaryGoalsSafe,
+        liquidityNeeds: liquidityNeedsSafe,
+        constraints: constraintsSafe,
+        investmentExperience: investmentExperienceSafe,
 
         // per-goal detail
         goalsDetail: goalsDetailInput,
 
         // narratives
-        introNarrative: introNarrative ?? null,
-        goalsNarrative: goalsNarrative ?? null,
-        concernsNarrative: concernsNarrative ?? null,
+        introNarrative: introNarrativeSafe,
+        goalsNarrative: goalsNarrativeSafe,
+        concernsNarrative: concernsNarrativeSafe,
 
         // server-computed progress
         onboardingProgress,
@@ -490,7 +693,7 @@ export async function POST(req: NextRequest, context: any) {
 
         identityVerificationStatus,
         documentVerificationStatus,
-        idDocType,
+        idDocType: idDocTypeSafe,
         idDocUrl: secureReviewUrl,
         idDocProviderRef,
         proofOfAddressUrl: null,
@@ -509,44 +712,44 @@ export async function POST(req: NextRequest, context: any) {
 
         firstName: nf,
         lastName: nl,
-        phone,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        addressLine1,
-        addressLine2,
-        city,
-        state,
-        postalCode,
-        country,
-        citizenship,
+        phone: phoneSafe,
+        dateOfBirth: null,
+        addressLine1: addressLine1Safe,
+        addressLine2: addressLine2Safe,
+        city: citySafe,
+        state: stateSafe,
+        postalCode: postalCodeSafe,
+        country: countrySafe,
+        citizenship: citizenshipSafe,
 
-        employmentStatus,
-        employerName,
-        annualIncomeBand,
-        sourceOfFunds,
-        liquidAssetsBand,
-        illiquidAssetsBand,
-        liabilitiesBand,
-        netWorthBand,
+        employmentStatus: employmentStatusSafe,
+        employerName: employerNameSafe,
+        annualIncomeBand: annualIncomeBandSafe,
+        sourceOfFunds: sourceOfFundsSafe,
+        liquidAssetsBand: liquidAssetsBandSafe,
+        illiquidAssetsBand: illiquidAssetsBandSafe,
+        liabilitiesBand: liabilitiesBandSafe,
+        netWorthBand: netWorthBandSafe,
         hasIRA: !!hasIRA,
         has401k: !!has401k,
         hasTaxable: hasTaxable !== false,
         hasCrypto: !!hasCrypto,
         hasRealEstate: !!hasRealEstate,
 
-        riskTolerance,
-        timeHorizon,
-        primaryGoals: Array.isArray(primaryGoals) ? primaryGoals : [],
-        liquidityNeeds,
-        constraints: Array.isArray(constraints) ? constraints : [],
-        investmentExperience,
+        riskTolerance: riskToleranceSafe,
+        timeHorizon: timeHorizonSafe,
+        primaryGoals: primaryGoalsSafe,
+        liquidityNeeds: liquidityNeedsSafe,
+        constraints: constraintsSafe,
+        investmentExperience: investmentExperienceSafe,
 
         // per-goal detail
         goalsDetail: goalsDetailInput,
 
         // narratives
-        introNarrative: introNarrative ?? null,
-        goalsNarrative: goalsNarrative ?? null,
-        concernsNarrative: concernsNarrative ?? null,
+        introNarrative: introNarrativeSafe,
+        goalsNarrative: goalsNarrativeSafe,
+        concernsNarrative: concernsNarrativeSafe,
 
         // server-computed progress
         onboardingProgress,
@@ -558,7 +761,7 @@ export async function POST(req: NextRequest, context: any) {
         dobEnc,
         identityVerificationStatus,
         documentVerificationStatus,
-        idDocType,
+        idDocType: idDocTypeSafe,
         idDocUrl: secureReviewUrl,
         idDocProviderRef,
         proofOfAddressUrl: null,
@@ -577,10 +780,10 @@ export async function POST(req: NextRequest, context: any) {
 
     // Refresh product recs atomically
     const recs = matchProducts({
-      riskTolerance,
-      timeHorizon,
-      primaryGoals,
-      annualIncomeBand,
+      riskTolerance: riskToleranceSafe || undefined,
+      timeHorizon: timeHorizonSafe || undefined,
+      primaryGoals: primaryGoalsSafe,
+      annualIncomeBand: annualIncomeBandSafe || undefined,
       hasIRA,
       has401k,
       hasTaxable,
@@ -608,7 +811,7 @@ export async function POST(req: NextRequest, context: any) {
     await prisma.trialLead.updateMany({
       where: {
         advisorId,
-        email,
+        email: emailSafe,
         status: "new",
       },
       data: { status: "activated" },
@@ -625,19 +828,19 @@ export async function POST(req: NextRequest, context: any) {
         clientId: client.id,
         metadata: {
           onboardingProgress,
-          openQuestions: Array.isArray(constraints) ? constraints.length : 0,
+          openQuestions: constraintsSafe.length,
         },
       }),
       recordAuditLog({
         actorRole: "client",
-        actorLabel: email,
+        actorLabel: emailSafe,
         advisorId,
         action: "client.onboarding.submitted",
         targetType: "client",
         targetId: client.id,
         metadata: {
           onboardingProgress,
-          sourceOfFunds,
+          sourceOfFunds: sourceOfFundsSafe,
         },
       }),
       complianceRequest?.providerRef
@@ -655,15 +858,15 @@ export async function POST(req: NextRequest, context: any) {
       syncClientToHubSpot({
         firstName: nf,
         lastName: nl,
-        email,
-        phone: typeof phone === "string" ? phone : null,
+        email: emailSafe,
+        phone: phoneSafe,
         company: intake.advisor?.firm ?? null,
       }),
       intake.advisor?.email
         ? sendNewSubmissionEmail({
             to: intake.advisor.email,
             advisorName: intake.advisor.name || undefined,
-            client: { firstName: nf, lastName: nl, email },
+            client: { firstName: nf, lastName: nl, email: emailSafe },
             submissionId: client.id,
             adminUrl: advisorAdminUrl,
           })

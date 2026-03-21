@@ -95,6 +95,7 @@ export default function Home() {
             <span className="metric-pill">Guided trials</span>
             <span className="metric-pill">Advisor workspaces</span>
             <span className="metric-pill">Compliance review states</span>
+            <span className="metric-pill">PII minimization</span>
             <span className="metric-pill">Google and social ready</span>
           </div>
 
@@ -110,7 +111,7 @@ export default function Home() {
               },
               {
                 label: "Operational backbone",
-                body: "Advisor login, review workflow, exports, and lead capture that already work together.",
+                body: "Advisor login, review workflow, exports, audit trails, and lead capture that already work together.",
               },
             ].map((item) => (
               <div key={item.label} className="surface-card p-5">
@@ -328,6 +329,10 @@ export default function Home() {
               {
                 left: "No social or search presence worth sharing",
                 right: "Metadata, OG images, sitemap, manifest, and better canonical setup",
+              },
+              {
+                left: "Diligence questions with weak answers",
+                right: "Security page, stronger legal copy, PII minimization, and cleaner audit posture",
               },
             ].map((row) => (
               <div

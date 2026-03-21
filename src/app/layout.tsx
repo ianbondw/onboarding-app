@@ -3,6 +3,7 @@ import React from "react";
 import Link from "next/link";
 import type { Metadata, Viewport } from "next";
 import { Manrope, Space_Grotesk } from "next/font/google";
+import { ADMIN_ORIGIN, APP_ORIGIN, SITE_ORIGIN } from "@/lib/site-config";
 
 const bodyFont = Manrope({
   subsets: ["latin"],
@@ -13,13 +14,6 @@ const displayFont = Space_Grotesk({
   subsets: ["latin"],
   variable: "--font-display",
 });
-
-const SITE_ORIGIN =
-  process.env.NEXT_PUBLIC_SITE_ORIGIN?.trim() || "https://marengofinance.com";
-const ADMIN_ORIGIN =
-  process.env.NEXT_PUBLIC_ADMIN_ORIGIN?.trim() ||
-  "https://marengofinance-admin.com";
-const APP_ORIGIN = process.env.NEXT_PUBLIC_APP_ORIGIN?.trim() || "";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_ORIGIN),
@@ -137,6 +131,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link className="link" href="/contact">
                 Contact
               </Link>
+              <Link className="link" href="/security">
+                Security
+              </Link>
               <a className="btn-secondary" href={adminHref}>
                 Admin
               </a>
@@ -185,6 +182,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </Link>
                 <Link className="link" href="/contact">
                   Contact
+                </Link>
+                <Link className="link" href="/security">
+                  Security
                 </Link>
                 <Link className="link" href="/legal/privacy">
                   Privacy

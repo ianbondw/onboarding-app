@@ -42,6 +42,7 @@ export const pricingPlans: PricingPlan[] = [
       "Up to 10 advisor logins",
       "Shared review queue and flags",
       "Trial analytics and lifecycle events",
+      "PII minimization and audit trail controls",
       "Priority launch support",
     ],
     ctaHref: "/pilot?plan=growth-team",
@@ -121,7 +122,12 @@ export const faqItems = [
   {
     question: "Can compliance or ops review submissions before they move forward?",
     answer:
-      "Yes. The live product includes admin review, client field flags, compliance review states, and export options so operations can stay in control.",
+      "Yes. The live product includes admin review, client field flags, compliance review states, minimized submission snapshots, and export options so operations can stay in control.",
+  },
+  {
+    question: "How do you handle security and diligence?",
+    answer:
+      "The product includes encrypted sensitive fields, scoped portal sessions, audit logs, and a dedicated security page for diligence. Formal customer compliance and any SOC examination still depend on contracts, policies, and the broader control environment, not just the UI.",
   },
   {
     question: "Do we need to pay before trying it?",

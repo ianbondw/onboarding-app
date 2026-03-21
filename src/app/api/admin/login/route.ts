@@ -4,24 +4,101 @@ import {
   loginPortalUser,
   setPortalSessionCookie,
 } from "@/lib/admin-auth";
+import { hashToken } from "@/lib/security";
 import { recordAuditLog, recordLifecycleEvent } from "@/lib/lifecycle";
 
 export const dynamic = "force-dynamic";
+
+const LOGIN_BUCKETS = new Map<string, { count: number; resetAt: number }>();
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+
+function clientIp(req: Request) {
+  return (
+    (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
+function fingerprint(value: string) {
+  return hashToken(value).slice(0, 16);
+}
+
+function rateLimitKey(req: Request, email: string) {
+  return `${clientIp(req)}::${email.trim().toLowerCase()}`;
+}
+
+function takeLoginAttempt(req: Request, email: string) {
+  const key = rateLimitKey(req, email);
+  const now = Date.now();
+  const existing = LOGIN_BUCKETS.get(key);
+
+  if (!existing || now > existing.resetAt) {
+    LOGIN_BUCKETS.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return { allowed: true as const, retryAfterSec: 0 };
+  }
+
+  if (existing.count >= LOGIN_MAX_ATTEMPTS) {
+    return {
+      allowed: false as const,
+      retryAfterSec: Math.max(1, Math.ceil((existing.resetAt - now) / 1000)),
+    };
+  }
+
+  existing.count += 1;
+  return { allowed: true as const, retryAfterSec: 0 };
+}
+
+function clearLoginAttempts(req: Request, email: string) {
+  LOGIN_BUCKETS.delete(rateLimitKey(req, email));
+}
 
 export async function POST(req: Request) {
   const { email, password } = await req.json().catch(() => ({
     email: "",
     password: "",
   }));
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const ipHash = fingerprint(clientIp(req));
 
   if (!password) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const login = await loginPortalUser(email, password);
+  const gate = takeLoginAttempt(req, normalizedEmail);
+  if (!gate.allowed) {
+    return NextResponse.json(
+      { error: "Too many login attempts. Please wait and try again." },
+      { status: 429, headers: { "Retry-After": String(gate.retryAfterSec) } }
+    );
+  }
+
+  const login = await loginPortalUser(normalizedEmail, password);
   if (!login) {
+    await Promise.allSettled([
+      recordLifecycleEvent({
+        eventType: "portal.login.failed",
+        actorRole: "anonymous",
+        metadata: {
+          email: normalizedEmail || null,
+          ipHash,
+        },
+      }),
+      recordAuditLog({
+        actorRole: "anonymous",
+        actorLabel: normalizedEmail || "unknown",
+        action: "portal.login.failed",
+        targetType: "session",
+        metadata: {
+          email: normalizedEmail || null,
+          ipHash,
+        },
+      }),
+    ]);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  clearLoginAttempts(req, normalizedEmail);
 
   const res = NextResponse.json({ ok: true, role: login.role });
   clearPortalSessionCookie(res);
