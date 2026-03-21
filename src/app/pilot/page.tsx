@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import PilotClient from "./PilotClient";
 import { getPricingPlan, pricingPlans } from "@/lib/marketing";
 
-export const metadata = {
-  title: "Guided Trial - Marengo Finance",
+export const metadata: Metadata = {
+  title: "Guided Trial",
   description: "Create a guided Marengo trial workspace and scope your rollout.",
+  alternates: {
+    canonical: "/pilot",
+  },
 };
 
 export default async function PilotPage({

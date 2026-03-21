@@ -1,20 +1,24 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata = {
-  title: "About - Marengo Finance",
+export const metadata: Metadata = {
+  title: "About",
   description:
     "Marengo helps RIAs replace manual onboarding with a cleaner client and advisor workflow.",
+  alternates: {
+    canonical: "/about",
+  },
 };
 
 export default function AboutPage() {
   return (
     <main className="space-y-8 pb-10">
-      <section className="rounded-[30px] border bg-white/90 p-8 shadow-sm">
-        <div className="space-y-3">
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+      <section className="section-shell p-8 md:p-10">
+        <div className="relative z-10 space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
             About Marengo
           </div>
-          <h1 className="text-4xl font-semibold tracking-tight text-slate-950">
+          <h1 className="display-type text-4xl font-semibold text-slate-950 md:text-5xl">
             Marengo exists to make client onboarding sellable, usable, and operationally cleaner.
           </h1>
           <p className="max-w-3xl text-base leading-8 text-slate-600">
@@ -43,16 +47,18 @@ export default function AboutPage() {
               "Pricing, trial provisioning, and admin flows are designed to help you move from demo interest to a real buyer conversation.",
           },
         ].map((item) => (
-          <div key={item.title} className="rounded-[28px] border bg-white/90 p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-slate-950">{item.title}</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">{item.body}</p>
+          <div key={item.title} className="surface-card p-6">
+            <div className="relative z-10">
+              <h2 className="display-type text-xl font-semibold text-slate-950">{item.title}</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{item.body}</p>
+            </div>
           </div>
         ))}
       </section>
 
-      <section className="rounded-[30px] border bg-white/90 p-8 shadow-sm">
-        <div className="space-y-3">
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+      <section className="section-shell p-8 md:p-10">
+        <div className="relative z-10 space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
             What is already in the product
           </div>
           <ul className="grid gap-3 md:grid-cols-2">
@@ -64,7 +70,10 @@ export default function AboutPage() {
               "CSV export and downstream webhook hooks",
               "Portal user management for owner, ops, and advisor roles",
             ].map((item) => (
-              <li key={item} className="rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <li
+                key={item}
+                className="rounded-[1.3rem] border border-white/70 bg-white/70 px-4 py-3 text-sm text-slate-700"
+              >
                 {item}
               </li>
             ))}
@@ -72,21 +81,21 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="rounded-[34px] bg-slate-950 px-8 py-10 text-white shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <section className="spotlight-card px-8 py-10 text-white">
+        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <div className="text-xs font-medium uppercase tracking-[0.18em] text-amber-300">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">
               Next step
             </div>
-            <h2 className="mt-3 text-3xl font-semibold">
+            <h2 className="display-type mt-3 text-3xl font-semibold md:text-4xl">
               If the offer makes sense, create a trial and use it to scope rollout.
             </h2>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href="/pilot?plan=guided-launch" className="inline-flex rounded-lg bg-white px-5 py-3 text-sm font-medium text-slate-950">
+            <Link href="/pilot?plan=guided-launch" className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950">
               Start guided trial
             </Link>
-            <Link href="/pricing" className="inline-flex rounded-lg border border-slate-700 px-5 py-3 text-sm font-medium text-white">
+            <Link href="/pricing" className="inline-flex rounded-full border border-white/18 bg-white/8 px-5 py-3 text-sm font-semibold text-white">
               Review pricing
             </Link>
           </div>

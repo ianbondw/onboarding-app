@@ -1,11 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { pricingPlans, rolloutSteps } from "@/lib/marketing";
 
-function buildContactHref() {
-  const email = (process.env.CONTACT_TO || "").trim();
-  if (!email) return "/contact";
-  return `mailto:${email}?subject=${encodeURIComponent("Marengo pricing inquiry")}`;
-}
+const SITE_ORIGIN =
+  process.env.NEXT_PUBLIC_SITE_ORIGIN?.trim() || "https://marengofinance.com";
 
 const sharedInclusions = [
   "Branded client onboarding flow",
@@ -17,163 +15,219 @@ const sharedInclusions = [
 const addOns = [
   {
     title: "Custom domain and deeper branding",
-    body: "For firms that want a more embedded client experience instead of a standard app-domain rollout.",
+    body: "Use this when the public-facing experience needs to feel like your firm, not a generic app.",
   },
   {
     title: "CRM, webhook, and ops integration",
-    body: "Use the rollout to wire Marengo into your downstream follow-up, alerts, or CRM pipeline.",
+    body: "Wire Marengo into your downstream follow-up, alerts, and internal operational tooling.",
   },
   {
     title: "Higher-touch implementation",
-    body: "Best for multi-advisor teams that want help structuring access, workflow, and internal rollout.",
+    body: "Best for multi-advisor teams that need help structuring access, review flow, and internal adoption.",
   },
 ];
 
-export const metadata = {
-  title: "Pricing - Marengo Finance",
+export const metadata: Metadata = {
+  title: "Pricing",
   description: "Guided rollout pricing for Marengo client onboarding.",
+  alternates: {
+    canonical: "/pricing",
+  },
 };
+
+function buildContactHref() {
+  const email = (process.env.CONTACT_TO || "").trim();
+  if (!email) return "/contact";
+  return `mailto:${email}?subject=${encodeURIComponent("Marengo pricing inquiry")}`;
+}
 
 export default function PricingPage() {
   const contactHref = buildContactHref();
 
+  const pricingSchema = {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name: "Marengo rollout pricing",
+    provider: {
+      "@type": "Organization",
+      name: "Marengo Finance",
+      url: SITE_ORIGIN,
+    },
+    url: `${SITE_ORIGIN}/pricing`,
+    description:
+      "Guided trial and rollout pricing for RIAs and wealth teams using Marengo client onboarding.",
+  };
+
   return (
-    <main className="space-y-16 pb-10">
-      <section className="space-y-5 pt-4">
-        <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-amber-900">
-          Rollout pricing
+    <main className="space-y-16 pb-12">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingSchema) }}
+      />
+
+      <section className="section-shell p-8 md:p-10">
+        <div className="relative z-10 space-y-5">
+          <div className="eyebrow">Rollout pricing</div>
+          <h1 className="display-type max-w-4xl text-5xl font-semibold text-slate-950 md:text-6xl">
+            Pricing that frames Marengo as a rollout partner, not just another monthly tool.
+          </h1>
+          <p className="max-w-3xl text-lg leading-8 text-slate-600">
+            Start with a guided trial, prove the experience, and then move into the package
+            that matches your team size, polish expectations, and operational depth.
+          </p>
         </div>
-        <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
-          Price the implementation around a real guided trial, not a generic software demo.
-        </h1>
-        <p className="max-w-3xl text-lg leading-8 text-slate-600">
-          Start with a dedicated workspace, prove the onboarding flow, then move into the
-          rollout package that matches your team size and operational needs.
-        </p>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
         {pricingPlans.map((plan) => (
           <div
             key={plan.slug}
-            className={`rounded-[30px] border p-6 shadow-sm ${
-              plan.featured
-                ? "border-slate-950 bg-slate-950 text-white"
-                : "border-slate-200 bg-white/90 text-slate-900"
-            }`}
+            className={plan.featured ? "spotlight-card p-6 text-white" : "surface-card p-6"}
           >
-            <div className="text-xs font-medium uppercase tracking-[0.18em] text-amber-300">
-              {plan.name}
-            </div>
-            <div className="mt-4 text-3xl font-semibold">{plan.setupFee}</div>
-            <div className={`mt-1 text-sm ${plan.featured ? "text-slate-300" : "text-slate-500"}`}>
-              {plan.monthlyPrice}
-            </div>
-            <p className={`mt-4 text-sm leading-7 ${plan.featured ? "text-slate-200" : "text-slate-600"}`}>
-              {plan.bestFor}
-            </p>
-            <p className={`mt-3 text-sm leading-7 ${plan.featured ? "text-slate-300" : "text-slate-500"}`}>
-              {plan.summary}
-            </p>
+            <div className="relative z-10">
+              <div
+                className={`text-xs font-semibold uppercase tracking-[0.18em] ${
+                  plan.featured ? "text-amber-200" : "text-slate-500"
+                }`}
+              >
+                {plan.name}
+              </div>
+              <div className="mt-4 display-type text-4xl font-semibold">
+                {plan.setupFee}
+              </div>
+              <div className={`mt-1 text-sm ${plan.featured ? "text-slate-200" : "text-slate-500"}`}>
+                {plan.monthlyPrice}
+              </div>
+              <p className={`mt-4 text-sm leading-7 ${plan.featured ? "text-slate-200" : "text-slate-600"}`}>
+                {plan.bestFor}
+              </p>
+              <p className={`mt-3 text-sm leading-7 ${plan.featured ? "text-slate-200" : "text-slate-500"}`}>
+                {plan.summary}
+              </p>
 
-            <div className="mt-5 space-y-3">
-              {plan.highlights.map((highlight) => (
-                <div
-                  key={highlight}
-                  className={`rounded-2xl border px-4 py-3 text-sm ${
-                    plan.featured
-                      ? "border-slate-800 bg-slate-900 text-slate-100"
-                      : "border-slate-200 bg-slate-50 text-slate-700"
-                  }`}
-                >
-                  {highlight}
-                </div>
-              ))}
-            </div>
+              <div className="mt-5 grid gap-3">
+                {plan.highlights.map((highlight) => (
+                  <div
+                    key={highlight}
+                    className={`rounded-[1.3rem] border px-4 py-3 text-sm ${
+                      plan.featured
+                        ? "border-white/10 bg-white/8 text-slate-50"
+                        : "border-white/70 bg-white/70 text-slate-700"
+                    }`}
+                  >
+                    {highlight}
+                  </div>
+                ))}
+              </div>
 
-            <Link
-              href={plan.ctaHref}
-              className={`mt-6 inline-flex rounded-lg px-4 py-3 text-sm font-medium ${
-                plan.featured
-                  ? "bg-white text-slate-950"
-                  : "border border-slate-300 bg-white text-slate-900"
-              }`}
-            >
-              {plan.ctaLabel}
-            </Link>
+              <Link
+                href={plan.ctaHref}
+                className={`mt-6 inline-flex rounded-full px-5 py-3 text-sm font-semibold ${
+                  plan.featured
+                    ? "bg-white text-slate-950"
+                    : "border border-slate-200 bg-white text-slate-900"
+                }`}
+              >
+                {plan.ctaLabel}
+              </Link>
+            </div>
           </div>
         ))}
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[0.8fr,1.2fr]">
-        <div className="rounded-[30px] border bg-white/90 p-6 shadow-sm">
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-            Every paid rollout includes
-          </div>
-          <div className="mt-4 space-y-3">
-            {sharedInclusions.map((item) => (
-              <div key={item} className="rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[30px] border bg-white/90 p-6 shadow-sm">
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-            Rollout path
-          </div>
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {rolloutSteps.map((step, index) => (
-              <div key={step.title} className="rounded-3xl border bg-slate-50 p-5">
-                <div className="text-sm font-semibold text-amber-700">0{index + 1}</div>
-                <h2 className="mt-3 text-lg font-medium text-slate-950">{step.title}</h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">{step.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-[30px] border bg-white/90 p-6 shadow-sm">
-        <div className="space-y-3">
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-            Common add-ons
-          </div>
-          <h2 className="text-3xl font-semibold text-slate-950">
-            Use add-ons to turn a clean launch into a deeper operational system.
-          </h2>
-        </div>
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
-          {addOns.map((item) => (
-            <div key={item.title} className="rounded-3xl border bg-slate-50 p-5">
-              <h3 className="text-lg font-medium text-slate-950">{item.title}</h3>
-              <p className="mt-3 text-sm leading-7 text-slate-600">{item.body}</p>
+      <section className="grid gap-6 lg:grid-cols-[0.82fr,1.18fr]">
+        <div className="section-shell p-6">
+          <div className="relative z-10">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Every paid rollout includes
             </div>
-          ))}
+            <div className="mt-4 grid gap-3">
+              {sharedInclusions.map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[1.3rem] border border-white/70 bg-white/70 px-4 py-3 text-sm text-slate-700"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="section-shell p-6">
+          <div className="relative z-10">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Rollout path
+            </div>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              {rolloutSteps.map((step, index) => (
+                <div key={step.title} className="surface-card p-5">
+                  <div className="relative z-10">
+                    <div className="text-sm font-semibold text-amber-700">0{index + 1}</div>
+                    <h2 className="display-type mt-3 text-xl font-semibold text-slate-950">
+                      {step.title}
+                    </h2>
+                    <p className="mt-3 text-sm leading-7 text-slate-600">{step.body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="rounded-[34px] bg-slate-950 px-8 py-10 text-white shadow-sm">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <section className="section-shell p-8 md:p-10">
+        <div className="relative z-10">
+          <div className="space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Common add-ons
+            </div>
+            <h2 className="display-type text-3xl font-semibold text-slate-950 md:text-4xl">
+              Add the polish and integration work that makes the rollout feel enterprise-ready.
+            </h2>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            {addOns.map((item) => (
+              <div key={item.title} className="surface-card p-5">
+                <div className="relative z-10">
+                  <h3 className="display-type text-xl font-semibold text-slate-950">
+                    {item.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="spotlight-card px-8 py-10 text-white">
+        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <div className="text-xs font-medium uppercase tracking-[0.18em] text-amber-300">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">
               Ready to scope it
             </div>
-            <h2 className="mt-3 text-3xl font-semibold">
-              Start with Guided Launch or request a higher-touch rollout.
+            <h2 className="display-type mt-3 text-3xl font-semibold md:text-4xl">
+              Start with Guided Launch or open a deeper rollout conversation.
             </h2>
-            <p className="mt-3 text-sm leading-7 text-slate-300">
-              The trial is the proof step. Paid rollout is where we turn the working flow
-              into the version you can actually sell and operate.
+            <p className="mt-3 text-sm leading-7 text-slate-200">
+              The trial is the proof step. Paid rollout is where the product becomes your
+              branded, repeatable system.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link href="/pilot?plan=guided-launch" className="inline-flex rounded-lg bg-white px-5 py-3 text-sm font-medium text-slate-950">
+            <Link
+              href="/pilot?plan=guided-launch"
+              className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950"
+            >
               Start guided trial
             </Link>
-            <a href={contactHref} className="inline-flex rounded-lg border border-slate-700 px-5 py-3 text-sm font-medium text-white">
+            <a
+              href={contactHref}
+              className="inline-flex rounded-full border border-white/18 bg-white/8 px-5 py-3 text-sm font-semibold text-white"
+            >
               Talk to us
             </a>
           </div>
