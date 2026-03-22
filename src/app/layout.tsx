@@ -3,6 +3,7 @@ import React from "react";
 import Link from "next/link";
 import type { Metadata, Viewport } from "next";
 import { Manrope, Space_Grotesk } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 import { ADMIN_ORIGIN, APP_ORIGIN, SITE_ORIGIN } from "@/lib/site-config";
 
 const bodyFont = Manrope({
@@ -125,6 +126,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link className="link" href="/pricing">
                 Pricing
               </Link>
+              <Link className="link" href="/demo">
+                Demo
+              </Link>
               <Link className="link" href="/about">
                 About
               </Link>
@@ -151,6 +155,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="flex items-center gap-2 md:hidden">
               <Link className="btn-secondary" href="/pricing">
                 Pricing
+              </Link>
+              <Link className="btn-secondary" href="/demo">
+                Demo
               </Link>
               {APP_ORIGIN ? (
                 <a className="btn-primary" href={trialHref}>
@@ -180,6 +187,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link className="link" href="/pricing">
                   Pricing
                 </Link>
+                <Link className="link" href="/demo">
+                  Demo
+                </Link>
                 <Link className="link" href="/contact">
                   Contact
                 </Link>
@@ -205,6 +215,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </footer>
         </div>
+        <Analytics />
       </body>
     </html>
   );

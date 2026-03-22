@@ -96,11 +96,15 @@ export async function POST(req: Request) {
 
     const appOrigin = (process.env.NEXT_PUBLIC_APP_ORIGIN || "https://marengofinance-app.com").replace(/\/$/, "");
     const adminOrigin = (process.env.NEXT_PUBLIC_ADMIN_ORIGIN || appOrigin).replace(/\/$/, "");
+    const siteOrigin = (process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://marengofinance.com").replace(/\/$/, "");
     const adminToken = issueAdvisorToken(created.advisor.id);
 
     const onboardingUrl = `${appOrigin}/onboarding/${created.token}`;
     const adminUrl = `${adminOrigin}/admin/clients?admin_token=${adminToken}`;
     const loginUrl = `${adminOrigin}/admin/login`;
+    const demoUrl = `${siteOrigin}/demo`;
+    const trustUrl = `${siteOrigin}/trust`;
+    const pricingUrl = `${siteOrigin}/pricing`;
 
     let portalUser:
       | { email: string; temporaryPassword: string }
@@ -206,7 +210,16 @@ Login URL:
 ${loginUrl}
 
 Temporary password:
-${portalUser?.temporaryPassword || "(not provisioned)"}`,
+${portalUser?.temporaryPassword || "(not provisioned)"}
+
+Walkthrough:
+${demoUrl}
+
+Trust center:
+${trustUrl}
+
+Pricing:
+${pricingUrl}`,
       });
     }
 
@@ -218,14 +231,22 @@ ${portalUser?.temporaryPassword || "(not provisioned)"}`,
 
 Name: ${leadName || created.advisor.name}
 Firm: ${leadFirm || created.advisor.firm || "(none)"}
-Requested rollout: ${planName || plan || "guided trial"}
+Requested rollout: ${planName || plan || "instant trial"}
 
 Login URL: ${loginUrl}
 Email: ${portalUser.email}
 Temporary password: ${portalUser.temporaryPassword}
 
 Onboarding URL: ${onboardingUrl}
-Advisor dashboard: ${adminUrl}`,
+Advisor dashboard: ${adminUrl}
+
+How to start:
+1. Watch the walkthrough: ${demoUrl}
+2. Open the onboarding link and complete one sample submission.
+3. Sign into the advisor portal. A one-time verification code will be sent to this same inbox.
+4. Use the trust center during internal review: ${trustUrl}
+
+Pricing and rollout options: ${pricingUrl}`,
       });
     }
 
@@ -236,6 +257,9 @@ Advisor dashboard: ${adminUrl}`,
         onboardingUrl,
         adminUrl,
         loginUrl,
+        demoUrl,
+        trustUrl,
+        pricingUrl,
         portalUser,
         leadCaptured: !!created.leadId,
       },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { track } from "@vercel/analytics";
 import {
   getPricingPlan,
   pricingPlans,
@@ -12,6 +13,9 @@ type TrialLinks = {
   onboardingUrl: string;
   adminUrl: string;
   loginUrl?: string;
+  demoUrl?: string;
+  trustUrl?: string;
+  pricingUrl?: string;
   portalUser?: {
     email: string;
     temporaryPassword: string;
@@ -70,7 +74,16 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
         onboardingUrl: payload.onboardingUrl,
         adminUrl: payload.adminUrl,
         loginUrl: payload.loginUrl,
+        demoUrl: payload.demoUrl,
+        trustUrl: payload.trustUrl,
+        pricingUrl: payload.pricingUrl,
         portalUser: payload.portalUser ?? null,
+      });
+      track("Create Trial Workspace", {
+        source: "pilot_page",
+        plan: selectedPlan.slug,
+        teamSize,
+        timeline,
       });
     } catch (error: any) {
       setErr(error?.message || "Could not create trial links.");
@@ -83,19 +96,20 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
     <main className="space-y-8 pb-12">
       <section className="grid gap-6 lg:grid-cols-[1.05fr,0.95fr]">
         <div className="space-y-5">
-          <div className="eyebrow">Guided trial request</div>
+          <div className="eyebrow">Instant trial request</div>
           <h1 className="display-type text-5xl font-semibold text-slate-950 md:text-6xl">
-            Create a polished live trial and use it to scope the rollout.
+            Create a polished live trial and start using it right away.
           </h1>
           <p className="max-w-2xl text-base leading-8 text-slate-600 md:text-lg">
-            This is the handoff from marketing to actual buying motion. We provision a real
-            advisor workspace with onboarding, dashboard access, and review flow so the trial
-            already feels like the product you would buy.
+            This is the handoff from marketing to product use. We provision a real advisor
+            workspace with onboarding, dashboard access, and review flow so the trial already
+            behaves like the product you would buy.
           </p>
           <div className="flex flex-wrap gap-2">
             <span className="metric-pill">No credit card</span>
             <span className="metric-pill">Dedicated workspace</span>
             <span className="metric-pill">Buyer context captured</span>
+            <span className="metric-pill">No sales call required</span>
           </div>
         </div>
 
@@ -280,8 +294,8 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
                 Best use of the trial
               </div>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                Run a real sample submission, review it in the dashboard, and decide what
-                needs to be branded, exported, or integrated before you move into rollout.
+                Run a real sample submission, review it in the dashboard, and use the walkthrough
+                and trust center to sell the rollout internally without waiting on us.
               </p>
             </div>
           </div>
@@ -312,6 +326,11 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
                   Open login
                 </a>
               ) : null}
+              {links.demoUrl ? (
+                <a className="btn-secondary" href={links.demoUrl}>
+                  Watch walkthrough
+                </a>
+              ) : null}
             </div>
 
             {links.portalUser ? (
@@ -319,11 +338,40 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
                 <div className="font-medium">Advisor credentials</div>
                 <div className="mt-1">Email: {links.portalUser.email}</div>
                 <div>Temporary password: {links.portalUser.temporaryPassword}</div>
+                <div className="mt-2 text-emerald-900/80">
+                  When you sign in, the portal sends a one-time verification code to the same inbox.
+                </div>
               </div>
             ) : null}
 
-            <div className="mt-4 text-xs text-slate-500">
-              The links are tied to a dedicated advisor workspace, not a shared demo token.
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {[
+                "1. Open the onboarding link and submit one realistic household.",
+                "2. Sign into the advisor portal and complete the email-code MFA step.",
+                "3. Review the client in the dashboard and export if needed.",
+                "4. Send the walkthrough and trust center to anyone else who needs to approve the rollout.",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[1.35rem] border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-700"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-3 text-xs text-slate-500">
+              <span>The links are tied to a dedicated advisor workspace, not a shared demo token.</span>
+              {links.trustUrl ? (
+                <a className="underline" href={links.trustUrl}>
+                  Trust center
+                </a>
+              ) : null}
+              {links.pricingUrl ? (
+                <a className="underline" href={links.pricingUrl}>
+                  Pricing
+                </a>
+              ) : null}
             </div>
           </div>
         </section>

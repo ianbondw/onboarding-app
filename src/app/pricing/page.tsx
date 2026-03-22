@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import TrackedLink from "@/components/TrackedLink";
 import { pricingPlans, rolloutSteps } from "@/lib/marketing";
 
 const SITE_ORIGIN =
@@ -9,7 +9,7 @@ const sharedInclusions = [
   "Branded client onboarding flow",
   "Advisor dashboard and backoffice access",
   "Export-ready client data",
-  "Guided trial workspace before paid rollout",
+  "Instant trial workspace before paid rollout",
 ];
 
 const addOns = [
@@ -29,7 +29,7 @@ const addOns = [
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Guided rollout pricing for Marengo client onboarding.",
+  description: "Instant-trial and rollout pricing for Marengo client onboarding.",
   alternates: {
     canonical: "/pricing",
   },
@@ -72,9 +72,27 @@ export default function PricingPage() {
             Pricing that frames Marengo as a rollout partner, not just another monthly tool.
           </h1>
           <p className="max-w-3xl text-lg leading-8 text-slate-600">
-            Start with a guided trial, prove the experience, and then move into the package
+            Start with an instant trial, prove the experience, and then move into the package
             that matches your team size, polish expectations, and operational depth.
           </p>
+          <div className="flex flex-wrap gap-3 pt-2">
+            <TrackedLink
+              href="/demo"
+              eventName="Watch Demo CTA"
+              eventProps={{ source: "pricing", placement: "hero" }}
+              className="btn-secondary px-5 py-3"
+            >
+              Watch 2-minute demo
+            </TrackedLink>
+            <TrackedLink
+              href="/pilot?plan=guided-launch"
+              eventName="Start Trial CTA"
+              eventProps={{ source: "pricing", placement: "hero" }}
+              className="btn-primary px-5 py-3"
+            >
+              Start instant trial
+            </TrackedLink>
+          </div>
         </div>
       </section>
 
@@ -120,8 +138,10 @@ export default function PricingPage() {
                 ))}
               </div>
 
-              <Link
+              <TrackedLink
                 href={plan.ctaHref}
+                eventName={plan.slug === "white-label-ops" ? "Talk To Sales CTA" : "Start Trial CTA"}
+                eventProps={{ source: "pricing", placement: "plan_card", plan: plan.slug }}
                 className={`mt-6 inline-flex rounded-full px-5 py-3 text-sm font-semibold ${
                   plan.featured
                     ? "bg-white text-slate-950"
@@ -129,7 +149,7 @@ export default function PricingPage() {
                 }`}
               >
                 {plan.ctaLabel}
-              </Link>
+              </TrackedLink>
             </div>
           </div>
         ))}
@@ -209,7 +229,7 @@ export default function PricingPage() {
               Ready to scope it
             </div>
             <h2 className="display-type mt-3 text-3xl font-semibold md:text-4xl">
-              Start with Guided Launch or open a deeper rollout conversation.
+              Start with Guided Launch, watch the walkthrough, or open a deeper rollout conversation.
             </h2>
             <p className="mt-3 text-sm leading-7 text-slate-200">
               The trial is the proof step. Paid rollout is where the product becomes your
@@ -218,18 +238,31 @@ export default function PricingPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link
+            <TrackedLink
               href="/pilot?plan=guided-launch"
+              eventName="Start Trial CTA"
+              eventProps={{ source: "pricing", placement: "footer_cta" }}
               className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950"
             >
-              Start guided trial
-            </Link>
-            <a
-              href={contactHref}
+              Start instant trial
+            </TrackedLink>
+            <TrackedLink
+              href="/demo"
+              eventName="Watch Demo CTA"
+              eventProps={{ source: "pricing", placement: "footer_cta" }}
               className="inline-flex rounded-full border border-white/18 bg-white/8 px-5 py-3 text-sm font-semibold text-white"
             >
+              Watch walkthrough
+            </TrackedLink>
+            <TrackedLink
+              href={contactHref}
+              eventName="Talk To Sales CTA"
+              eventProps={{ source: "pricing", placement: "footer_cta" }}
+              className="inline-flex rounded-full border border-white/18 bg-white/8 px-5 py-3 text-sm font-semibold text-white"
+              external
+            >
               Talk to us
-            </a>
+            </TrackedLink>
           </div>
         </div>
       </section>

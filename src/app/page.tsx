@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import TrackedLink from "@/components/TrackedLink";
 import { faqItems, pricingPlans, revenueOutcomes, rolloutSteps } from "@/lib/marketing";
 
 const SITE_ORIGIN =
@@ -80,15 +81,39 @@ export default function Home() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link href="/pilot?plan=guided-launch" className="btn-primary px-5 py-3">
-              Start guided trial
-            </Link>
-            <Link href="/pricing" className="btn-secondary px-5 py-3">
+            <TrackedLink
+              href="/pilot?plan=guided-launch"
+              eventName="Start Trial CTA"
+              eventProps={{ source: "home", placement: "hero" }}
+              className="btn-primary px-5 py-3"
+            >
+              Start instant trial
+            </TrackedLink>
+            <TrackedLink
+              href="/demo"
+              eventName="Watch Demo CTA"
+              eventProps={{ source: "home", placement: "hero" }}
+              className="btn-secondary px-5 py-3"
+            >
+              Watch 2-minute demo
+            </TrackedLink>
+            <TrackedLink
+              href="/pricing"
+              eventName="Open Pricing CTA"
+              eventProps={{ source: "home", placement: "hero" }}
+              className="btn-secondary px-5 py-3"
+            >
               Review pricing
-            </Link>
-            <a href={contactHref} className="btn-plain px-4 py-3">
+            </TrackedLink>
+            <TrackedLink
+              href={contactHref}
+              eventName="Talk To Sales CTA"
+              eventProps={{ source: "home", placement: "hero" }}
+              className="btn-plain px-4 py-3"
+              external
+            >
               Talk to sales
-            </a>
+            </TrackedLink>
           </div>
 
           <div className="flex flex-wrap gap-2 pt-1">
@@ -97,6 +122,7 @@ export default function Home() {
             <span className="metric-pill">Compliance review states</span>
             <span className="metric-pill">PII minimization</span>
             <span className="metric-pill">Google and social ready</span>
+            <span className="metric-pill">No sales call required</span>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
@@ -137,6 +163,7 @@ export default function Home() {
                   "A dedicated advisor workspace instead of a recycled demo",
                   "Client onboarding, dashboard access, and review flow",
                   "Lead capture plus follow-up context for sales",
+                  "A captioned walkthrough you can share internally",
                   "A pricing story that turns interest into a rollout conversation",
                 ].map((item) => (
                   <div
@@ -177,15 +204,75 @@ export default function Home() {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Product walkthrough
+              </div>
+              <h2 className="display-type mt-2 text-3xl font-semibold text-slate-950 md:text-4xl">
+                Show the flow in two minutes before you ask anyone to fill out a form.
+              </h2>
+            </div>
+            <TrackedLink
+              href="/demo"
+              eventName="Watch Demo CTA"
+              eventProps={{ source: "home", placement: "demo_section" }}
+              className="btn-secondary w-fit"
+            >
+              Open walkthrough
+            </TrackedLink>
+          </div>
+
+          <div className="mt-8 grid gap-4 lg:grid-cols-[1.08fr,0.92fr]">
+            <div className="spotlight-card p-6 text-white">
+              <div className="relative z-10">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">
+                  Captioned demo
+                </div>
+                <div className="mt-3 display-type text-3xl font-semibold">
+                  Homepage to onboarding to advisor portal to privacy queue to trust center
+                </div>
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-200">
+                  The walkthrough is built to be forwarded to firm stakeholders. It explains what
+                  the product does, how to use it, and why the trust story is stronger now.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3">
+              {[
+                "Closed captions and downloadable transcript",
+                "Strong enough for internal stakeholders, not just the buyer",
+                "Ends in a self-serve instant-trial CTA",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[1.5rem] border border-white/70 bg-white/70 px-4 py-4 text-sm text-slate-700 backdrop-blur"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section-shell p-8 md:p-10">
+        <div className="relative z-10">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 Why this converts better
               </div>
               <h2 className="display-type mt-2 text-3xl font-semibold text-slate-950 md:text-4xl">
                 The site should feel as premium as the onboarding product you want firms to buy.
               </h2>
             </div>
-            <Link href="/pricing" className="btn-secondary w-fit">
+            <TrackedLink
+              href="/pricing"
+              eventName="Open Pricing CTA"
+              eventProps={{ source: "home", placement: "why_convert_section" }}
+              className="btn-secondary w-fit"
+            >
               Compare rollout packages
-            </Link>
+            </TrackedLink>
           </div>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -209,7 +296,7 @@ export default function Home() {
             How it works
           </div>
           <h2 className="display-type text-3xl font-semibold text-slate-950 md:text-4xl">
-            Start with a guided trial. Turn it into a rollout once the flow proves itself.
+            Start with an instant trial. Turn it into a rollout once the flow proves itself.
           </h2>
         </div>
 
@@ -237,7 +324,7 @@ export default function Home() {
             Packages that make it easier to charge for the rollout, not just the software.
           </h2>
           <p className="max-w-3xl text-base leading-8 text-slate-600">
-            Guided trials prove the product. Paid packages turn that proof into a branded,
+            Instant trials prove the product. Paid packages turn that proof into a branded,
             operational setup your team can adopt and prospects can take seriously.
           </p>
         </div>
@@ -382,27 +469,39 @@ export default function Home() {
               Ready to promote
             </div>
             <h2 className="display-type mt-3 text-3xl font-semibold md:text-4xl">
-              You can run Google, socials, and outreach against this now without it feeling dated.
+              You can run Google, socials, and outreach against this now and let buyers start on their own.
             </h2>
             <p className="mt-3 text-sm leading-7 text-slate-200">
-              Start with the guided trial, use pricing to qualify the conversation, and push
-              prospects into a flow that already leads into real operations.
+              Start with the walkthrough, use the instant trial to prove the workflow, and push
+              prospects into a path that already leads into real operations without waiting on a live call.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link
+            <TrackedLink
               href="/pilot?plan=guided-launch"
+              eventName="Start Trial CTA"
+              eventProps={{ source: "home", placement: "footer_cta" }}
               className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950"
             >
-              Create guided trial
-            </Link>
-            <Link
+              Create instant trial
+            </TrackedLink>
+            <TrackedLink
+              href="/demo"
+              eventName="Watch Demo CTA"
+              eventProps={{ source: "home", placement: "footer_cta" }}
+              className="inline-flex rounded-full border border-white/18 bg-white/8 px-5 py-3 text-sm font-semibold text-white"
+            >
+              Watch walkthrough
+            </TrackedLink>
+            <TrackedLink
               href="/pricing"
+              eventName="Open Pricing CTA"
+              eventProps={{ source: "home", placement: "footer_cta" }}
               className="inline-flex rounded-full border border-white/18 bg-white/8 px-5 py-3 text-sm font-semibold text-white"
             >
               Review packages
-            </Link>
+            </TrackedLink>
           </div>
         </div>
       </section>

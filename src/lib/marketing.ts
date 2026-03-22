@@ -27,7 +27,7 @@ export const pricingPlans: PricingPlan[] = [
       "Lead capture, onboarding, and exports",
     ],
     ctaHref: "/pilot?plan=guided-launch",
-    ctaLabel: "Start guided trial",
+    ctaLabel: "Start instant trial",
     featured: true,
   },
   {
@@ -46,7 +46,7 @@ export const pricingPlans: PricingPlan[] = [
       "Priority launch support",
     ],
     ctaHref: "/pilot?plan=growth-team",
-    ctaLabel: "Request team rollout",
+    ctaLabel: "Start team trial",
   },
   {
     slug: "white-label-ops",
@@ -87,9 +87,9 @@ export const revenueOutcomes = [
 
 export const rolloutSteps = [
   {
-    title: "Create a guided trial",
+    title: "Create an instant trial",
     body:
-      "We provision a dedicated workspace with client onboarding, advisor access, and a review path instead of a shared fake demo.",
+      "Create a dedicated workspace with client onboarding, advisor access, and a review path instead of waiting for a shared fake demo.",
   },
   {
     title: "Run your actual intake flow",
@@ -133,6 +133,11 @@ export const faqItems = [
     question: "Do we need to pay before trying it?",
     answer:
       "No. The guided trial is the fastest way to see the flow. Paid plans start when you want a branded rollout and implementation support.",
+  },
+  {
+    question: "Can we start without a sales call?",
+    answer:
+      "Yes. The site now supports a self-serve path: watch the walkthrough, create a dedicated workspace, sign in with email plus MFA, and run a real sample submission without waiting for a live demo.",
   },
 ];
 

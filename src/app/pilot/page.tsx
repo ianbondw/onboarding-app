@@ -3,8 +3,8 @@ import PilotClient from "./PilotClient";
 import { getPricingPlan, pricingPlans } from "@/lib/marketing";
 
 export const metadata: Metadata = {
-  title: "Guided Trial",
-  description: "Create a guided Marengo trial workspace and scope your rollout.",
+  title: "Instant Trial",
+  description: "Create an instant Marengo trial workspace and start using the product immediately.",
   alternates: {
     canonical: "/pilot",
   },
