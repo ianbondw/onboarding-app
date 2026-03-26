@@ -184,6 +184,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+                <Link className="link" href="/ria-onboarding-software">
+                  RIA Software
+                </Link>
                 <Link className="link" href="/pricing">
                   Pricing
                 </Link>
