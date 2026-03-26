@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import TrackedLink from "@/components/TrackedLink";
+import { getPlanAction } from "@/lib/public-sales";
 
 export const metadata: Metadata = {
   title: "About",
@@ -11,6 +12,8 @@ export const metadata: Metadata = {
 };
 
 export default function AboutPage() {
+  const guidedLaunchAction = getPlanAction("guided-launch");
+
   return (
     <main className="space-y-8 pb-10">
       <section className="section-shell p-8 md:p-10">
@@ -34,7 +37,7 @@ export default function AboutPage() {
           {
             title: "Built for real rollout",
             body:
-              "The product is structured around guided trials, advisor workspaces, review states, and a path to paid implementation.",
+              "The product is structured around instant trials, advisor workspaces, review states, and a path to paid implementation.",
           },
           {
             title: "Scoped for RIAs",
@@ -92,12 +95,23 @@ export default function AboutPage() {
             </h2>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href="/pilot?plan=guided-launch" className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950">
-              Start guided trial
-            </Link>
-            <Link href="/pricing" className="inline-flex rounded-full border border-white/18 bg-white/8 px-5 py-3 text-sm font-semibold text-white">
+            <TrackedLink
+              href={guidedLaunchAction.href}
+              eventName={guidedLaunchAction.kind === "checkout" ? "Open Checkout CTA" : "Start Trial CTA"}
+              eventProps={{ source: "about", placement: "footer_cta" }}
+              className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950"
+              external={guidedLaunchAction.external}
+            >
+              {guidedLaunchAction.label}
+            </TrackedLink>
+            <TrackedLink
+              href="/pricing"
+              eventName="Open Pricing CTA"
+              eventProps={{ source: "about", placement: "footer_cta" }}
+              className="inline-flex rounded-full border border-white/18 bg-white/8 px-5 py-3 text-sm font-semibold text-white"
+            >
               Review pricing
-            </Link>
+            </TrackedLink>
           </div>
         </div>
       </section>

@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     template: "%s | Marengo Finance",
   },
   description:
-    "White-labeled client onboarding for RIAs and wealth teams, with guided trials, advisor workspaces, and rollout-ready operations.",
+    "White-labeled client onboarding for RIAs and wealth teams, with instant trials, advisor workspaces, and rollout-ready operations.",
   applicationName: "Marengo Finance",
   keywords: [
     "RIA onboarding",
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     siteName: "Marengo Finance",
     title: "Marengo Finance",
     description:
-      "Guided trials, advisor workspaces, and a cleaner onboarding flow for RIAs and wealth teams.",
+      "Instant trials, advisor workspaces, and a cleaner onboarding flow for RIAs and wealth teams.",
     images: [
       {
         url: "/opengraph-image",
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Marengo Finance",
     description:
-      "Guided trials, advisor workspaces, and a cleaner onboarding flow for RIAs and wealth teams.",
+      "Instant trials, advisor workspaces, and a cleaner onboarding flow for RIAs and wealth teams.",
     images: ["/twitter-image"],
   },
   icons: {
@@ -180,7 +180,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   Marengo Finance
                 </div>
                 <div className="mt-1 text-sm text-slate-500">
-                  Guided trials, advisor workspaces, and rollout-ready onboarding for RIAs.
+                  Instant trials, advisor workspaces, and rollout-ready onboarding for RIAs.
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">

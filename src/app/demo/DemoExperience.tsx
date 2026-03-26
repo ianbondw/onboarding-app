@@ -10,12 +10,22 @@ import {
   demoScenes,
   demoTranscript,
 } from "@/lib/demo-content";
+import { getBookingAction, getPlanAction } from "@/lib/public-sales";
+
+function getActionEventName(kind: string) {
+  if (kind === "checkout") return "Open Checkout CTA";
+  if (kind === "booking") return "Book Call CTA";
+  if (kind === "contact") return "Talk To Sales CTA";
+  return "Start Trial CTA";
+}
 
 export default function DemoExperience() {
   const [sceneIndex, setSceneIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
   const completionTrackedRef = useRef(false);
+  const guidedLaunchAction = getPlanAction("guided-launch");
+  const bookingAction = getBookingAction("/contact");
   const currentScene = demoScenes[sceneIndex];
   const totalDuration = useMemo(
     () => demoScenes.reduce((sum, scene) => sum + scene.durationMs, 0),
@@ -102,12 +112,13 @@ export default function DemoExperience() {
 
           <div className="flex flex-wrap gap-3">
             <TrackedLink
-              href="/pilot?plan=guided-launch"
-              eventName="Start Trial CTA"
+              href={guidedLaunchAction.href}
+              eventName={getActionEventName(guidedLaunchAction.kind)}
               eventProps={{ source: "demo_page", placement: "hero" }}
               className="btn-primary px-5 py-3"
+              external={guidedLaunchAction.external}
             >
-              Start instant trial
+              {guidedLaunchAction.label}
             </TrackedLink>
             <TrackedLink
               href={demoCaptionDownloadPath}
@@ -226,7 +237,7 @@ export default function DemoExperience() {
                 <div className="space-y-4 rounded-[1.7rem] border border-white/10 bg-white/7 p-5">
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">
-                      {currentScene.kicker} · {currentScene.timestamp}
+                      {currentScene.kicker} | {currentScene.timestamp}
                     </div>
                     <h3 className="display-type mt-3 text-2xl font-semibold">
                       {currentScene.title}
@@ -300,12 +311,13 @@ export default function DemoExperience() {
                   </p>
                   <div className="mt-5 flex flex-wrap gap-3">
                     <TrackedLink
-                      href="/pilot?plan=guided-launch"
-                      eventName="Start Trial CTA"
+                      href={guidedLaunchAction.href}
+                      eventName={getActionEventName(guidedLaunchAction.kind)}
                       eventProps={{ source: "demo_page", placement: "side_panel" }}
                       className="btn-primary"
+                      external={guidedLaunchAction.external}
                     >
-                      Launch workspace
+                      {guidedLaunchAction.label}
                     </TrackedLink>
                     <TrackedLink
                       href="/pricing"
@@ -374,20 +386,22 @@ export default function DemoExperience() {
             </div>
             <div className="mt-6 flex flex-wrap gap-3">
               <TrackedLink
-                href="/pilot?plan=guided-launch"
-                eventName="Start Trial CTA"
+                href={guidedLaunchAction.href}
+                eventName={getActionEventName(guidedLaunchAction.kind)}
                 eventProps={{ source: "demo_page", placement: "bottom_cta" }}
                 className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950"
+                external={guidedLaunchAction.external}
               >
-                Start now
+                {guidedLaunchAction.label}
               </TrackedLink>
               <TrackedLink
-                href="/trust"
-                eventName="Open Trust Center CTA"
+                href={bookingAction.href}
+                eventName={getActionEventName(bookingAction.kind)}
                 eventProps={{ source: "demo_page", placement: "bottom_cta" }}
                 className="inline-flex rounded-full border border-white/18 bg-white/8 px-5 py-3 text-sm font-semibold text-white"
+                external={bookingAction.external}
               >
-                Review trust docs
+                {bookingAction.label}
               </TrackedLink>
             </div>
           </div>

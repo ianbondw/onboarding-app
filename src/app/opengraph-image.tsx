@@ -83,13 +83,13 @@ export default function OpenGraphImage() {
               Modern enough to sell. Strong enough to run.
             </div>
             <div style={{ fontSize: 30, lineHeight: 1.35, color: "#465064" }}>
-              Guided trials, advisor workspaces, rollout pricing, and a cleaner path from
+              Instant trials, advisor workspaces, rollout pricing, and a cleaner path from
               first interest to funded client.
             </div>
           </div>
 
           <div style={{ display: "flex", gap: 14 }}>
-            {["Guided trials", "Advisor workspaces", "Rollout-ready operations"].map((item) => (
+            {["Instant trials", "Advisor workspaces", "Rollout-ready operations"].map((item) => (
               <div
                 key={item}
                 style={{

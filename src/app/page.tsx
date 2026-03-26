@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import TrackedLink from "@/components/TrackedLink";
 import { faqItems, pricingPlans, revenueOutcomes, rolloutSteps } from "@/lib/marketing";
+import { getBookingAction, getPlanAction } from "@/lib/public-sales";
 
 const SITE_ORIGIN =
   process.env.NEXT_PUBLIC_SITE_ORIGIN?.trim() || "https://marengofinance.com";
@@ -9,7 +9,7 @@ const SITE_ORIGIN =
 export const metadata: Metadata = {
   title: "Modern Client Onboarding for RIAs",
   description:
-    "Guided trials, advisor workspaces, and a cleaner onboarding flow for RIAs and wealth teams.",
+    "Instant trials, advisor workspaces, and a rollout-ready onboarding flow for RIAs and wealth teams.",
   alternates: {
     canonical: "/",
   },
@@ -21,8 +21,17 @@ function buildContactHref() {
   return `mailto:${email}?subject=${encodeURIComponent("Marengo rollout inquiry")}`;
 }
 
+function getActionEventName(kind: string) {
+  if (kind === "checkout") return "Open Checkout CTA";
+  if (kind === "booking") return "Book Call CTA";
+  if (kind === "contact") return "Talk To Sales CTA";
+  return "Start Trial CTA";
+}
+
 export default function Home() {
   const contactHref = buildContactHref();
+  const guidedLaunchAction = getPlanAction("guided-launch");
+  const bookingAction = getBookingAction(contactHref);
 
   const faqSchema = {
     "@context": "https://schema.org",
@@ -74,7 +83,7 @@ export default function Home() {
               Client onboarding that feels modern enough to sell and strong enough to run.
             </h1>
             <p className="max-w-2xl text-lg leading-8 text-slate-600 md:text-xl">
-              Marengo turns email chains, PDF packets, and manual review into a guided
+              Marengo turns email chains, PDF packets, and manual review into an instant
               trial workspace with advisor access, structured review, and a paid rollout
               path that looks credible on Google, social, and live demos.
             </p>
@@ -82,12 +91,13 @@ export default function Home() {
 
           <div className="flex flex-wrap gap-3">
             <TrackedLink
-              href="/pilot?plan=guided-launch"
-              eventName="Start Trial CTA"
+              href={guidedLaunchAction.href}
+              eventName={getActionEventName(guidedLaunchAction.kind)}
               eventProps={{ source: "home", placement: "hero" }}
               className="btn-primary px-5 py-3"
+              external={guidedLaunchAction.external}
             >
-              Start instant trial
+              {guidedLaunchAction.label}
             </TrackedLink>
             <TrackedLink
               href="/demo"
@@ -106,22 +116,25 @@ export default function Home() {
               Review pricing
             </TrackedLink>
             <TrackedLink
-              href={contactHref}
-              eventName="Talk To Sales CTA"
+              href={bookingAction.href}
+              eventName={getActionEventName(bookingAction.kind)}
               eventProps={{ source: "home", placement: "hero" }}
               className="btn-plain px-4 py-3"
-              external
+              external={bookingAction.external}
             >
-              Talk to sales
+              {bookingAction.label}
             </TrackedLink>
           </div>
 
           <div className="flex flex-wrap gap-2 pt-1">
-            <span className="metric-pill">Guided trials</span>
+            <span className="metric-pill">Instant trials</span>
             <span className="metric-pill">Advisor workspaces</span>
             <span className="metric-pill">Compliance review states</span>
             <span className="metric-pill">PII minimization</span>
             <span className="metric-pill">Google and social ready</span>
+            {guidedLaunchAction.kind === "checkout" ? (
+              <span className="metric-pill">Direct checkout ready</span>
+            ) : null}
             <span className="metric-pill">No sales call required</span>
           </div>
 
@@ -129,7 +142,7 @@ export default function Home() {
             {[
               {
                 label: "Paid rollout path",
-                body: "From free guided trial to a branded launch package instead of a dead-end demo.",
+                body: "From free instant trial to a branded launch package instead of a dead-end demo.",
               },
               {
                 label: "Buyer-grade polish",
@@ -330,57 +343,109 @@ export default function Home() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">
-          {pricingPlans.map((plan) => (
-            <div
-              key={plan.slug}
-              className={plan.featured ? "spotlight-card p-6 text-white" : "surface-card p-6"}
-            >
-              <div className="relative z-10">
-                <div
-                  className={`text-xs font-semibold uppercase tracking-[0.18em] ${
-                    plan.featured ? "text-amber-200" : "text-slate-500"
-                  }`}
-                >
-                  {plan.name}
-                </div>
-                <div className="mt-3 display-type text-3xl font-semibold">
-                  {plan.setupFee}
-                </div>
-                <div className={`mt-1 text-sm ${plan.featured ? "text-slate-200" : "text-slate-500"}`}>
-                  {plan.monthlyPrice}
-                </div>
-                <p className={`mt-4 text-sm leading-7 ${plan.featured ? "text-slate-200" : "text-slate-600"}`}>
-                  {plan.bestFor}
-                </p>
+          {pricingPlans.map((plan) => {
+            const action = getPlanAction(plan.slug);
+            return (
+              <div
+                key={plan.slug}
+                className={plan.featured ? "spotlight-card p-6 text-white" : "surface-card p-6"}
+              >
+                <div className="relative z-10">
+                  <div
+                    className={`text-xs font-semibold uppercase tracking-[0.18em] ${
+                      plan.featured ? "text-amber-200" : "text-slate-500"
+                    }`}
+                  >
+                    {plan.name}
+                  </div>
+                  <div className="mt-3 display-type text-3xl font-semibold">
+                    {plan.setupFee}
+                  </div>
+                  <div
+                    className={`mt-1 text-sm ${plan.featured ? "text-slate-200" : "text-slate-500"}`}
+                  >
+                    {plan.monthlyPrice}
+                  </div>
+                  <p
+                    className={`mt-4 text-sm leading-7 ${plan.featured ? "text-slate-200" : "text-slate-600"}`}
+                  >
+                    {plan.bestFor}
+                  </p>
 
-                <div className="mt-5 grid gap-3">
-                  {plan.highlights.map((highlight) => (
-                    <div
-                      key={highlight}
-                      className={`rounded-[1.3rem] border px-4 py-3 text-sm ${
-                        plan.featured
-                          ? "border-white/10 bg-white/8 text-slate-50"
-                          : "border-white/70 bg-white/70 text-slate-700"
-                      }`}
-                    >
-                      {highlight}
-                    </div>
-                  ))}
-                </div>
+                  <div className="mt-5 grid gap-3">
+                    {plan.highlights.map((highlight) => (
+                      <div
+                        key={highlight}
+                        className={`rounded-[1.3rem] border px-4 py-3 text-sm ${
+                          plan.featured
+                            ? "border-white/10 bg-white/8 text-slate-50"
+                            : "border-white/70 bg-white/70 text-slate-700"
+                        }`}
+                      >
+                        {highlight}
+                      </div>
+                    ))}
+                  </div>
 
-                <Link
-                  href={plan.ctaHref}
-                  className={`mt-6 inline-flex rounded-full px-5 py-3 text-sm font-semibold ${
-                    plan.featured
-                      ? "bg-white text-slate-950"
-                      : "border border-slate-200 bg-white text-slate-900"
-                  }`}
-                >
-                  {plan.ctaLabel}
-                </Link>
+                  <TrackedLink
+                    href={action.href}
+                    eventName={getActionEventName(action.kind)}
+                    eventProps={{ source: "home", placement: "pricing_card", plan: plan.slug }}
+                    className={`mt-6 inline-flex rounded-full px-5 py-3 text-sm font-semibold ${
+                      plan.featured
+                        ? "bg-white text-slate-950"
+                        : "border border-slate-200 bg-white text-slate-900"
+                    }`}
+                    external={action.external}
+                  >
+                    {action.label}
+                  </TrackedLink>
+                </div>
               </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="section-shell p-8 md:p-10">
+        <div className="relative z-10">
+          <div className="space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Customer fit and expectations
             </div>
-          ))}
+            <h2 className="display-type text-3xl font-semibold text-slate-950 md:text-4xl">
+              Set the right expectation early and fewer customers end up disappointed later.
+            </h2>
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            {[
+              {
+                title: "Best fit right now",
+                body:
+                  "Solo advisors, small RIAs, and growth teams that want a more modern intake flow fast and are willing to test with a real sample household.",
+              },
+              {
+                title: "Not the best fit yet",
+                body:
+                  "Firms that require a fully custom CRM, custodian, or supervisory stack before they will run even a single live pilot.",
+              },
+              {
+                title: "What buyers should expect",
+                body:
+                  "The trial proves the workflow and trust posture quickly. The paid rollout is where branding, deeper integration work, and higher-touch implementation get locked in.",
+              },
+            ].map((item) => (
+              <div key={item.title} className="surface-card p-6">
+                <div className="relative z-10">
+                  <h3 className="display-type text-xl font-semibold text-slate-950">
+                    {item.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -479,12 +544,13 @@ export default function Home() {
 
           <div className="flex flex-wrap gap-3">
             <TrackedLink
-              href="/pilot?plan=guided-launch"
-              eventName="Start Trial CTA"
+              href={guidedLaunchAction.href}
+              eventName={getActionEventName(guidedLaunchAction.kind)}
               eventProps={{ source: "home", placement: "footer_cta" }}
               className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950"
+              external={guidedLaunchAction.external}
             >
-              Create instant trial
+              {guidedLaunchAction.label}
             </TrackedLink>
             <TrackedLink
               href="/demo"
@@ -495,12 +561,13 @@ export default function Home() {
               Watch walkthrough
             </TrackedLink>
             <TrackedLink
-              href="/pricing"
-              eventName="Open Pricing CTA"
+              href={bookingAction.href}
+              eventName={getActionEventName(bookingAction.kind)}
               eventProps={{ source: "home", placement: "footer_cta" }}
               className="inline-flex rounded-full border border-white/18 bg-white/8 px-5 py-3 text-sm font-semibold text-white"
+              external={bookingAction.external}
             >
-              Review packages
+              {bookingAction.label}
             </TrackedLink>
           </div>
         </div>

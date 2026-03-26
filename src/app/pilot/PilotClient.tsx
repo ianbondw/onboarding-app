@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { track } from "@vercel/analytics";
+import TrackedLink from "@/components/TrackedLink";
 import {
   getPricingPlan,
   pricingPlans,
   teamSizeOptions,
   timelineOptions,
 } from "@/lib/marketing";
+import { getBookingAction, getPlanAction } from "@/lib/public-sales";
 
 type TrialLinks = {
   onboardingUrl: string;
@@ -36,6 +38,8 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
   const [links, setLinks] = useState<TrialLinks | null>(null);
 
   const selectedPlan = getPricingPlan(planSlug) || pricingPlans[0];
+  const selectedPlanAction = getPlanAction(selectedPlan.slug);
+  const bookingAction = getBookingAction("/contact");
 
   async function generate() {
     setErr("");
@@ -123,6 +127,11 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
               {selectedPlan.setupFee} and {selectedPlan.monthlyPrice}
             </div>
             <p className="mt-4 text-sm leading-7 text-slate-200">{selectedPlan.bestFor}</p>
+            {selectedPlanAction.kind === "checkout" ? (
+              <div className="mt-4 rounded-[1.3rem] border border-emerald-300/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-50">
+                This package is configured for direct checkout when you are ready to buy.
+              </div>
+            ) : null}
             <div className="mt-4 grid gap-3">
               {selectedPlan.highlights.map((highlight) => (
                 <div
@@ -331,6 +340,17 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
                   Watch walkthrough
                 </a>
               ) : null}
+              {selectedPlanAction.kind === "checkout" ? (
+                <TrackedLink
+                  href={selectedPlanAction.href}
+                  eventName="Open Checkout CTA"
+                  eventProps={{ source: "pilot_page", placement: "success_cta", plan: selectedPlan.slug }}
+                  className="btn-secondary"
+                  external={selectedPlanAction.external}
+                >
+                  {selectedPlanAction.label}
+                </TrackedLink>
+              ) : null}
             </div>
 
             {links.portalUser ? (
@@ -372,6 +392,15 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
                   Pricing
                 </a>
               ) : null}
+              <TrackedLink
+                href={bookingAction.href}
+                eventName={bookingAction.kind === "booking" ? "Book Call CTA" : "Talk To Sales CTA"}
+                eventProps={{ source: "pilot_page", placement: "success_footer" }}
+                className="underline"
+                external={bookingAction.external}
+              >
+                {bookingAction.label}
+              </TrackedLink>
             </div>
           </div>
         </section>

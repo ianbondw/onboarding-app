@@ -112,7 +112,7 @@ export const faqItems = [
   {
     question: "How quickly can we launch?",
     answer:
-      "Most guided trials can be provisioned immediately. Paid rollout timing depends on your branding and workflow needs, but the product is built for fast setup, not a long enterprise implementation.",
+      "Most instant trials can be provisioned immediately. Paid rollout timing depends on your branding and workflow needs, but the product is built for fast setup, not a long enterprise implementation.",
   },
   {
     question: "Do you support white-label and advisor-specific links?",
@@ -132,12 +132,22 @@ export const faqItems = [
   {
     question: "Do we need to pay before trying it?",
     answer:
-      "No. The guided trial is the fastest way to see the flow. Paid plans start when you want a branded rollout and implementation support.",
+      "No. The instant trial is the fastest way to see the flow. Paid plans start when you want a branded rollout and implementation support.",
   },
   {
     question: "Can we start without a sales call?",
     answer:
       "Yes. The site now supports a self-serve path: watch the walkthrough, create a dedicated workspace, sign in with email plus MFA, and run a real sample submission without waiting for a live demo.",
+  },
+  {
+    question: "Who is the best fit for Marengo right now?",
+    answer:
+      "The best fit is an RIA or wealth team that wants a polished onboarding flow quickly, is willing to test with a realistic sample submission, and does not need a fully custom CRM or custodian integration before seeing value.",
+  },
+  {
+    question: "What tends to make customers unhappy with tools like this?",
+    answer:
+      "The usual problems are vague implementation timelines, unclear support boundaries, and over-promising what a trial includes. Marengo now sets a clearer expectation: the trial proves the flow fast, and the paid rollout is the step where branding, integrations, and higher-touch implementation are scoped and delivered.",
   },
 ];
 

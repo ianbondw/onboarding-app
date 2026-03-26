@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Marengo Finance",
     short_name: "Marengo",
     description:
-      "Guided trials, advisor workspaces, and rollout-ready onboarding for RIAs and wealth teams.",
+      "Instant trials, advisor workspaces, and rollout-ready onboarding for RIAs and wealth teams.",
     start_url: "/",
     display: "standalone",
     background_color: "#f4efe6",

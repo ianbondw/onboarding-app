@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import TrackedLink from "@/components/TrackedLink";
 import { pricingPlans, rolloutSteps } from "@/lib/marketing";
+import { getBookingAction, getPlanAction } from "@/lib/public-sales";
 
 const SITE_ORIGIN =
   process.env.NEXT_PUBLIC_SITE_ORIGIN?.trim() || "https://marengofinance.com";
@@ -41,8 +42,17 @@ function buildContactHref() {
   return `mailto:${email}?subject=${encodeURIComponent("Marengo pricing inquiry")}`;
 }
 
+function getActionEventName(kind: string) {
+  if (kind === "checkout") return "Open Checkout CTA";
+  if (kind === "booking") return "Book Call CTA";
+  if (kind === "contact") return "Talk To Sales CTA";
+  return "Start Trial CTA";
+}
+
 export default function PricingPage() {
   const contactHref = buildContactHref();
+  const guidedLaunchAction = getPlanAction("guided-launch");
+  const bookingAction = getBookingAction(contactHref);
 
   const pricingSchema = {
     "@context": "https://schema.org",
@@ -55,7 +65,7 @@ export default function PricingPage() {
     },
     url: `${SITE_ORIGIN}/pricing`,
     description:
-      "Guided trial and rollout pricing for RIAs and wealth teams using Marengo client onboarding.",
+      "Instant-trial and rollout pricing for RIAs and wealth teams using Marengo client onboarding.",
   };
 
   return (
@@ -85,74 +95,85 @@ export default function PricingPage() {
               Watch 2-minute demo
             </TrackedLink>
             <TrackedLink
-              href="/pilot?plan=guided-launch"
-              eventName="Start Trial CTA"
+              href={guidedLaunchAction.href}
+              eventName={getActionEventName(guidedLaunchAction.kind)}
               eventProps={{ source: "pricing", placement: "hero" }}
               className="btn-primary px-5 py-3"
+              external={guidedLaunchAction.external}
             >
-              Start instant trial
+              {guidedLaunchAction.label}
             </TrackedLink>
           </div>
         </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        {pricingPlans.map((plan) => (
-          <div
-            key={plan.slug}
-            className={plan.featured ? "spotlight-card p-6 text-white" : "surface-card p-6"}
-          >
-            <div className="relative z-10">
-              <div
-                className={`text-xs font-semibold uppercase tracking-[0.18em] ${
-                  plan.featured ? "text-amber-200" : "text-slate-500"
-                }`}
-              >
-                {plan.name}
-              </div>
-              <div className="mt-4 display-type text-4xl font-semibold">
-                {plan.setupFee}
-              </div>
-              <div className={`mt-1 text-sm ${plan.featured ? "text-slate-200" : "text-slate-500"}`}>
-                {plan.monthlyPrice}
-              </div>
-              <p className={`mt-4 text-sm leading-7 ${plan.featured ? "text-slate-200" : "text-slate-600"}`}>
-                {plan.bestFor}
-              </p>
-              <p className={`mt-3 text-sm leading-7 ${plan.featured ? "text-slate-200" : "text-slate-500"}`}>
-                {plan.summary}
-              </p>
+        {pricingPlans.map((plan) => {
+          const action = getPlanAction(plan.slug);
+          return (
+            <div
+              key={plan.slug}
+              className={plan.featured ? "spotlight-card p-6 text-white" : "surface-card p-6"}
+            >
+              <div className="relative z-10">
+                <div
+                  className={`text-xs font-semibold uppercase tracking-[0.18em] ${
+                    plan.featured ? "text-amber-200" : "text-slate-500"
+                  }`}
+                >
+                  {plan.name}
+                </div>
+                <div className="mt-4 display-type text-4xl font-semibold">
+                  {plan.setupFee}
+                </div>
+                <div
+                  className={`mt-1 text-sm ${plan.featured ? "text-slate-200" : "text-slate-500"}`}
+                >
+                  {plan.monthlyPrice}
+                </div>
+                <p
+                  className={`mt-4 text-sm leading-7 ${plan.featured ? "text-slate-200" : "text-slate-600"}`}
+                >
+                  {plan.bestFor}
+                </p>
+                <p
+                  className={`mt-3 text-sm leading-7 ${plan.featured ? "text-slate-200" : "text-slate-500"}`}
+                >
+                  {plan.summary}
+                </p>
 
-              <div className="mt-5 grid gap-3">
-                {plan.highlights.map((highlight) => (
-                  <div
-                    key={highlight}
-                    className={`rounded-[1.3rem] border px-4 py-3 text-sm ${
-                      plan.featured
-                        ? "border-white/10 bg-white/8 text-slate-50"
-                        : "border-white/70 bg-white/70 text-slate-700"
-                    }`}
-                  >
-                    {highlight}
-                  </div>
-                ))}
-              </div>
+                <div className="mt-5 grid gap-3">
+                  {plan.highlights.map((highlight) => (
+                    <div
+                      key={highlight}
+                      className={`rounded-[1.3rem] border px-4 py-3 text-sm ${
+                        plan.featured
+                          ? "border-white/10 bg-white/8 text-slate-50"
+                          : "border-white/70 bg-white/70 text-slate-700"
+                      }`}
+                    >
+                      {highlight}
+                    </div>
+                  ))}
+                </div>
 
-              <TrackedLink
-                href={plan.ctaHref}
-                eventName={plan.slug === "white-label-ops" ? "Talk To Sales CTA" : "Start Trial CTA"}
-                eventProps={{ source: "pricing", placement: "plan_card", plan: plan.slug }}
-                className={`mt-6 inline-flex rounded-full px-5 py-3 text-sm font-semibold ${
-                  plan.featured
-                    ? "bg-white text-slate-950"
-                    : "border border-slate-200 bg-white text-slate-900"
-                }`}
-              >
-                {plan.ctaLabel}
-              </TrackedLink>
+                <TrackedLink
+                  href={action.href}
+                  eventName={getActionEventName(action.kind)}
+                  eventProps={{ source: "pricing", placement: "plan_card", plan: plan.slug }}
+                  className={`mt-6 inline-flex rounded-full px-5 py-3 text-sm font-semibold ${
+                    plan.featured
+                      ? "bg-white text-slate-950"
+                      : "border border-slate-200 bg-white text-slate-900"
+                  }`}
+                  external={action.external}
+                >
+                  {action.label}
+                </TrackedLink>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[0.82fr,1.18fr]">
@@ -192,6 +213,48 @@ export default function PricingPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section-shell p-6 md:p-8">
+        <div className="relative z-10">
+          <div className="space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Buy with clearer expectations
+            </div>
+            <h2 className="display-type text-3xl font-semibold text-slate-950 md:text-4xl">
+              The fastest way to avoid buyer regret is to be explicit about fit, timing, and scope.
+            </h2>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            {[
+              {
+                title: "Best fit",
+                body:
+                  "Firms that want a premium onboarding experience quickly and can start with the core branded flow before asking for custom systems work.",
+              },
+              {
+                title: "What the paid rollout covers",
+                body:
+                  "Workspace setup, branding, seats, trust collateral, and the implementation support tied to the package you choose.",
+              },
+              {
+                title: "When to choose white-label ops",
+                body:
+                  "Use the custom path when you need custom domains, downstream integrations, or a more embedded implementation plan across multiple stakeholders.",
+              },
+            ].map((item) => (
+              <div key={item.title} className="surface-card p-5">
+                <div className="relative z-10">
+                  <h3 className="display-type text-xl font-semibold text-slate-950">
+                    {item.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.body}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -239,12 +302,13 @@ export default function PricingPage() {
 
           <div className="flex flex-wrap gap-3">
             <TrackedLink
-              href="/pilot?plan=guided-launch"
-              eventName="Start Trial CTA"
+              href={guidedLaunchAction.href}
+              eventName={getActionEventName(guidedLaunchAction.kind)}
               eventProps={{ source: "pricing", placement: "footer_cta" }}
               className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950"
+              external={guidedLaunchAction.external}
             >
-              Start instant trial
+              {guidedLaunchAction.label}
             </TrackedLink>
             <TrackedLink
               href="/demo"
@@ -255,13 +319,13 @@ export default function PricingPage() {
               Watch walkthrough
             </TrackedLink>
             <TrackedLink
-              href={contactHref}
-              eventName="Talk To Sales CTA"
+              href={bookingAction.href}
+              eventName={getActionEventName(bookingAction.kind)}
               eventProps={{ source: "pricing", placement: "footer_cta" }}
               className="inline-flex rounded-full border border-white/18 bg-white/8 px-5 py-3 text-sm font-semibold text-white"
-              external
+              external={bookingAction.external}
             >
-              Talk to us
+              {bookingAction.label}
             </TrackedLink>
           </div>
         </div>
