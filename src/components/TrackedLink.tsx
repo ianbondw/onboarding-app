@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { track } from "@vercel/analytics";
+import { appendAttributionParams } from "@/lib/attribution";
 
 type EventValue = string | number | boolean | null;
 
@@ -28,6 +30,15 @@ export default function TrackedLink({
   download?: boolean;
 }) {
   const isExternal = external ?? /^(https?:|mailto:)/i.test(href);
+  const [resolvedHref, setResolvedHref] = useState(href);
+
+  useEffect(() => {
+    if (isExternal || typeof window === "undefined") {
+      setResolvedHref(href);
+      return;
+    }
+    setResolvedHref(appendAttributionParams(href, new URLSearchParams(window.location.search)));
+  }, [href, isExternal]);
 
   function handleClick(_: MouseEvent<HTMLElement>) {
     track(eventName, eventProps);
@@ -37,7 +48,7 @@ export default function TrackedLink({
     return (
       <a
         className={className}
-        href={href}
+        href={resolvedHref}
         target={target}
         rel={rel}
         download={download}
@@ -49,7 +60,7 @@ export default function TrackedLink({
   }
 
   return (
-    <Link className={className} href={href} onClick={handleClick}>
+    <Link className={className} href={resolvedHref} onClick={handleClick}>
       {children}
     </Link>
   );

@@ -40,6 +40,29 @@
 - Keep one clear CTA per ad group: demo or instant trial.
 - Add sitelinks for `/pricing`, `/trust`, and `/demo`.
 
+### Suggested headlines
+
+- RIA onboarding software
+- modern advisor onboarding
+- client onboarding for RIAs
+- replace PDF intake workflows
+- instant trial for RIAs
+- advisor portal and review flow
+- trust-ready onboarding experience
+- built for wealth operations
+
+### Suggested descriptions
+
+- Replace PDF-heavy client onboarding with a cleaner intake flow, advisor workspace, and review path.
+- Show a modern experience to prospects and a cleaner operational handoff to advisors and ops.
+- Start with a walkthrough or instant trial, then scope the right rollout package for your team.
+
+### URL tagging
+
+- Homepage: `?utm_source=google&utm_medium=cpc&utm_campaign=brand`
+- RIA landing page: `?utm_source=google&utm_medium=cpc&utm_campaign=ria_onboarding&utm_term=ria+onboarding+software`
+- Demo page: `?utm_source=google&utm_medium=cpc&utm_campaign=ria_onboarding&utm_content=demo`
+
 ## LinkedIn Posting Sequence
 
 - Post 1: "Most RIAs still start onboarding with a PDF and an email chain."
@@ -47,6 +70,15 @@
 - Post 3: trust and diligence post linking to `/trust`.
 - Post 4: pricing/offer post linking to `/pricing`.
 - Post 5: direct CTA post linking to `/pilot?plan=guided-launch`.
+
+### First 2 weeks of posting
+
+- Week 1 Monday: pain post about PDFs and email chains
+- Week 1 Wednesday: product clip from `/demo`
+- Week 1 Friday: trust center post linking to `/trust`
+- Week 2 Monday: before-and-after ops workflow post
+- Week 2 Wednesday: pricing and rollout post linking to `/pricing`
+- Week 2 Friday: trial CTA post linking to `/pilot?plan=guided-launch`
 
 ## Cold Email Sequence
 

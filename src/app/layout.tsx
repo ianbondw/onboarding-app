@@ -62,6 +62,9 @@ export const metadata: Metadata = {
     icon: "/brand/bee-shield-classic.svg",
     apple: "/brand/bee-shield-classic.svg",
   },
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION?.trim() || undefined,
+  },
 };
 
 export const viewport: Viewport = {

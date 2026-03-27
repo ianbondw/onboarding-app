@@ -9,6 +9,7 @@ import {
   teamSizeOptions,
   timelineOptions,
 } from "@/lib/marketing";
+import { extractAttribution } from "@/lib/attribution";
 import { getBookingAction, getPlanAction } from "@/lib/public-sales";
 
 type TrialLinks = {
@@ -44,6 +45,10 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
   async function generate() {
     setErr("");
     setLinks(null);
+    const attribution =
+      typeof window === "undefined"
+        ? {}
+        : extractAttribution(new URLSearchParams(window.location.search));
 
     if (!name.trim() || !email.trim()) {
       setErr("Name and work email are required to create a trial workspace.");
@@ -67,7 +72,10 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
           currentProcess,
           plan: selectedPlan.slug,
           planName: selectedPlan.name,
-          source: `pilot:${selectedPlan.slug}`,
+          source: attribution.utm_source
+            ? `pilot:${selectedPlan.slug}:${attribution.utm_source}`
+            : `pilot:${selectedPlan.slug}`,
+          attribution,
         }),
       });
       const payload = await res.json();
@@ -84,10 +92,11 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
         portalUser: payload.portalUser ?? null,
       });
       track("Create Trial Workspace", {
-        source: "pilot_page",
+        source: attribution.utm_source || "pilot_page",
         plan: selectedPlan.slug,
         teamSize,
         timeline,
+        campaign: attribution.utm_campaign || "",
       });
     } catch (error: any) {
       setErr(error?.message || "Could not create trial links.");

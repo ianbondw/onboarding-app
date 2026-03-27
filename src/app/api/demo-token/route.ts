@@ -40,6 +40,10 @@ export async function POST(req: Request) {
     const plan = (body?.plan ?? "").toString().trim() || undefined;
     const planName = (body?.planName ?? "").toString().trim() || undefined;
     const source = (body?.source ?? "website").toString().trim() || "website";
+    const attribution =
+      body?.attribution && typeof body.attribution === "object" && !Array.isArray(body.attribution)
+        ? body.attribution
+        : {};
 
     const name = leadName || process.env.DEMO_ADVISOR_NAME || "Demo Advisor";
     const firm = leadFirm || process.env.DEMO_ADVISOR_FIRM || "Trial Workspace";
@@ -149,6 +153,7 @@ export async function POST(req: Request) {
           teamSize,
           timeline,
           currentProcess,
+          attribution,
           hasLead: !!created.leadId,
           onboardingUrl,
           adminUrl,
@@ -169,6 +174,7 @@ export async function POST(req: Request) {
           website,
           teamSize,
           timeline,
+          attribution,
           hasLead: !!created.leadId,
           portalUserCreated: !!portalUser,
         },
@@ -196,6 +202,11 @@ Requested plan: ${planName || plan || "(none)"}
 Advisor team size: ${teamSize || "(none)"}
 Desired timeline: ${timeline || "(none)"}
 Source: ${source}
+UTM source: ${attribution.utm_source || "(none)"}
+UTM medium: ${attribution.utm_medium || "(none)"}
+UTM campaign: ${attribution.utm_campaign || "(none)"}
+UTM term: ${attribution.utm_term || "(none)"}
+GCLID: ${attribution.gclid || "(none)"}
 
 Current onboarding process:
 ${currentProcess || "(not provided)"}
