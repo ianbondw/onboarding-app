@@ -250,6 +250,11 @@ export default async function AdminClients(props: any) {
                 </Link>
               ) : null}
               {hasBackofficeAccess(access) ? (
+                <Link href="/admin/growth" className="btn-secondary">
+                  Growth
+                </Link>
+              ) : null}
+              {hasBackofficeAccess(access) ? (
                 <Link href="/admin/privacy-requests" className="btn-secondary">
                   Privacy Queue
                 </Link>
