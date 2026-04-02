@@ -7,6 +7,7 @@ import { prisma } from "@/prisma";
 import { issueAdvisorToken } from "@/lib/jwt";
 import { sendMail } from "@/lib/mailer";
 import { recordAuditLog, recordLifecycleEvent } from "@/lib/lifecycle";
+import { seedDemoWorkspace } from "@/lib/demo-workspace";
 
 function rand(len = 24) {
   const bytes = crypto.getRandomValues(new Uint8Array(len));
@@ -95,7 +96,13 @@ export async function POST(req: Request) {
             })
           : null;
 
-      return { advisor, token, leadId: lead?.id ?? null };
+      const seeded = await seedDemoWorkspace(tx, {
+        advisorId: advisor.id,
+        advisorName: advisor.name,
+        advisorFirm: advisor.firm,
+      });
+
+      return { advisor, token, leadId: lead?.id ?? null, seededClients: seeded.createdClients };
     });
 
     const appOrigin = (process.env.NEXT_PUBLIC_APP_ORIGIN || "https://marengofinance-app.com").replace(/\/$/, "");
@@ -158,6 +165,7 @@ export async function POST(req: Request) {
           onboardingUrl,
           adminUrl,
           portalUserCreated: !!portalUser,
+          seededClients: created.seededClients,
         },
       }),
       recordAuditLog({
@@ -177,6 +185,7 @@ export async function POST(req: Request) {
           attribution,
           hasLead: !!created.leadId,
           portalUserCreated: !!portalUser,
+          seededClients: created.seededClients,
         },
       }),
       leadEmail
@@ -230,7 +239,10 @@ Trust center:
 ${trustUrl}
 
 Pricing:
-${pricingUrl}`,
+${pricingUrl}
+
+Seeded demo households:
+${created.seededClients}`,
       });
     }
 
@@ -253,11 +265,14 @@ Advisor dashboard: ${adminUrl}
 
 How to start:
 1. Watch the walkthrough: ${demoUrl}
-2. Open the onboarding link and complete one sample submission.
-3. Sign into the advisor portal. A one-time verification code will be sent to this same inbox.
-4. Use the trust center during internal review: ${trustUrl}
+2. Sign into the advisor portal. A one-time verification code will be sent to this same inbox.
+3. Review the preloaded sample households and reporting immediately.
+4. Open the onboarding link and complete one additional sample submission if you want to see the intake flow live.
+5. Use the trust center during internal review: ${trustUrl}
 
-Pricing and rollout options: ${pricingUrl}`,
+Pricing and rollout options: ${pricingUrl}
+
+Your workspace is preloaded with ${created.seededClients} realistic sample households so the dashboard and reporting are populated on first login.`,
       });
     }
 
@@ -273,6 +288,7 @@ Pricing and rollout options: ${pricingUrl}`,
         pricingUrl,
         portalUser,
         leadCaptured: !!created.leadId,
+        seededClients: created.seededClients,
       },
       { headers: { "Cache-Control": "no-store" } }
     );

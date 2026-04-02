@@ -15,6 +15,7 @@ import { getBookingAction, getPlanAction } from "@/lib/public-sales";
 type TrialLinks = {
   onboardingUrl: string;
   adminUrl: string;
+  seededClients?: number;
   loginUrl?: string;
   demoUrl?: string;
   trustUrl?: string;
@@ -85,6 +86,7 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
       setLinks({
         onboardingUrl: payload.onboardingUrl,
         adminUrl: payload.adminUrl,
+        seededClients: payload.seededClients,
         loginUrl: payload.loginUrl,
         demoUrl: payload.demoUrl,
         trustUrl: payload.trustUrl,
@@ -291,8 +293,9 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
               <div className="mt-4 grid gap-3">
                 {[
                   "We create a dedicated advisor workspace for your request.",
+                  "We preload realistic sample households so the dashboard and reporting are useful on first login.",
                   "You receive onboarding, dashboard, and login links.",
-                  "Your team can test the client journey and review flow immediately.",
+                  "Your team can review client briefs, risk mix, open flags, and top goals immediately.",
                   "You use that proof to choose Guided Launch, Growth Team, or a deeper rollout.",
                 ].map((item) => (
                   <div
@@ -312,8 +315,9 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
                 Best use of the trial
               </div>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                Run a real sample submission, review it in the dashboard, and use the walkthrough
-                and trust center to sell the rollout internally without waiting on us.
+                Start in the advisor dashboard, review the seeded households and reporting, then
+                run one additional sample submission and use the walkthrough and trust center to
+                sell the rollout internally without waiting on us.
               </p>
             </div>
           </div>
@@ -328,7 +332,9 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
                 Your trial workspace is ready
               </h2>
               <p className="mt-2 text-sm text-slate-600">
-                Open the onboarding flow as a client, then review the result in the advisor dashboard.
+                Open the advisor dashboard first to review the seeded households and reporting, then
+                submit one extra household through the onboarding flow if you want to test the full
+                client journey yourself.
               </p>
             </div>
 
@@ -373,11 +379,25 @@ export default function PilotClient({ initialPlanSlug }: { initialPlanSlug: stri
               </div>
             ) : null}
 
+            {links.seededClients ? (
+              <div className="mt-5 rounded-[1.5rem] border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+                <div className="font-medium">Preloaded review data</div>
+                <div className="mt-1">
+                  This workspace already includes {links.seededClients} realistic sample households
+                  with varied goals, statuses, product matches, and open review flags.
+                </div>
+                <div className="mt-2 text-sky-900/80">
+                  That means the advisor dashboard, briefs, and reporting are useful before you
+                  submit anything yourself.
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               {[
-                "1. Open the onboarding link and submit one realistic household.",
-                "2. Sign into the advisor portal and complete the email-code MFA step.",
-                "3. Review the client in the dashboard and export if needed.",
+                "1. Sign into the advisor portal and complete the email-code MFA step.",
+                "2. Review the seeded households, risk mix, open flags, and client briefs.",
+                "3. Open the onboarding link and submit one additional realistic household.",
                 "4. Send the walkthrough and trust center to anyone else who needs to approve the rollout.",
               ].map((item) => (
                 <div
